@@ -1,0 +1,10 @@
+/*[Bb]uild*
+/*[Dd]ebug*
+/*[Rr]elease*
+
+.*
+!.gitignore
+!.gitmodules
+!.gitlab-ci.yml
+!.clang-format
+compile_commands.json
