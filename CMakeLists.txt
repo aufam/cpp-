@@ -30,6 +30,10 @@ if (NOT CPPXX_BUILD_CMD AND NOT CPPXX_BUILD_TESTS AND NOT CPPXX_REQUIREMENTS)
 endif()
 
 
+# system libraries
+find_package(SQLite3 REQUIRED)
+
+
 # external libraries
 include(cmake/CPM.cmake)
 
@@ -38,6 +42,7 @@ CPMAddPackage(
     NAME            fmt
     GIT_REPOSITORY  "https://github.com/fmtlib/fmt"
     GIT_TAG         11.2.0
+    COMPONENTS      fmt
 )
 
 ## Logging
@@ -46,6 +51,7 @@ CPMAddPackage(
     GIT_REPOSITORY  "https://github.com/gabime/spdlog"
     GIT_TAG         v1.15.3
     OPTIONS         "SPDLOG_FMT_EXTERNAL ON"
+    COMPONENTS      spdlog
 )
 
 ## JSON lib
@@ -75,6 +81,7 @@ CPMAddPackage(
     GIT_REPOSITORY  "https://github.com/boostorg/pfr"
     GIT_TAG         boost-1.88.0
     OPTIONS         "BOOST_USE_MODULES OFF"
+    COMPONENTS      Boost::pfr
 )
 
 ## Reflection for enum
@@ -99,6 +106,25 @@ CPMAddPackage(
 )
 add_library(sha256 STATIC "${sha256_SOURCE_DIR}/sha256.c")
 target_include_directories(sha256 PUBLIC "${sha256_SOURCE_DIR}")
+
+## http lib
+CPMAddPackage(
+    NAME            httplib
+    GIT_REPOSITORY  "https://github.com/yhirose/cpp-httplib"
+    GIT_TAG         v0.26.0
+    OPTIONS         "HTTPLIB_COMPILE ON" "HTTPLIB_USE_ZSTD_IF_AVAILABLE OFF" "HTTPLIB_REQUIRE_OPENSSL ON" "HTTPLIB_INSTALL OFF"
+)
+set_target_properties(httplib PROPERTIES POSITION_INDEPENDENT_CODE ON)
+set(HTTPLIB_LICENSE "${httplib_SOURCE_DIR}/LICENSE")
+
+## Tests using GoogleTest
+CPMAddPackage(
+    NAME            googletest
+    GIT_REPOSITORY  "https://github.com/google/googletest"
+    GIT_TAG         v1.15.2
+    OPTIONS         "INSTALL_GTEST OFF"
+    COMPONENTS      gtest_main
+)
 
 # only setup the exeternal libraries
 if (CPPXX_REQUIREMENTS)
@@ -162,11 +188,14 @@ endif()
 if (CPPXX_BUILD_TESTS)
     file(GLOB_RECURSE TEST_SOURCES tests/*)
     add_executable(test_all ${TEST_SOURCES})
+    target_compile_features(test_all PRIVATE cxx_std_17)
 
     target_link_libraries(test_all PRIVATE
         cppxx
         cppxx_private
         gtest_main
+        httplib
+        SQLite::SQLite3
     )
 
 	enable_testing()
