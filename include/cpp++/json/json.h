@@ -1,7 +1,7 @@
 #ifndef CPPXX_JSON_JSON_H
 #define CPPXX_JSON_JSON_H
 
-#include <cpp++/tag.h>
+#include <cpp++/serde/serde.h>
 #include <cpp++/optional.h>
 
 #ifndef BOOST_PFR_HPP
@@ -9,39 +9,12 @@
 #endif
 
 namespace cppxx::json {
-    struct TagInfo {
-        bool skipmissing = false;
-        bool omitempty   = false;
+    using serde::TagInfo;
 
-        template <typename T>
-        static constexpr std::pair<std::string_view, TagInfo> from_tagged(const Tag<T> &field) {
-            std::string_view tag = field.get_tag("json");
-            std::string_view key;
-            TagInfo          ti{false, false};
-
-            size_t comma_pos = tag.find(',');
-            if (comma_pos == std::string_view::npos)
-                return {tag, ti};
-
-            key = tag.substr(0, comma_pos);
-            for (std::string_view rest = tag.substr(comma_pos + 1); !rest.empty();) {
-                size_t           next = rest.find(',');
-                std::string_view part = rest.substr(0, next);
-
-                if (part == "skipmissing")
-                    ti.skipmissing = true;
-                else if (part == "omitempty")
-                    ti.omitempty = true;
-
-                if (next == std::string_view::npos)
-                    break;
-
-                rest.remove_prefix(next + 1);
-            }
-
-            return {key, ti};
-        }
-    };
+    template <typename T>
+    constexpr TagInfo get_tag_info(const Tag<T> &field) {
+        return serde::get_tag_info(field, "json");
+    }
 } // namespace cppxx::json
 
 namespace cppxx::json::detail {

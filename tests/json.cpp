@@ -57,6 +57,7 @@ namespace {
 
 TEST(cppxx, yy_json_parse_full) {
     Person p = json::yy_json::parse<Person>(json_full);
+    cppxx::serde::Parse<yyjson_doc, std::string>{json_full}.into(p);
 
     EXPECT_EQ(p.name(), "Sucipto");
     EXPECT_EQ(p.age(), 24);

@@ -25,10 +25,10 @@ namespace nlohmann {
             boost::pfr::for_each_field(v, [&](auto &field) {
                 using T = std::decay_t<decltype(field)>;
                 if constexpr (cppxx::is_tagged_v<T>)
-                    if (auto [key, tag] = cppxx::json::TagInfo::from_tagged(field); key != "") {
-                        if (!tag.skipmissing)
-                            j.at(key).get_to(field.get_value());
-                        else if (auto it = j.find(key); it != j.end())
+                    if (cppxx::json::TagInfo ti = cppxx::json::get_tag_info(field); ti.key != "") {
+                        if (!ti.skipmissing)
+                            j.at(ti.key).get_to(field.get_value());
+                        else if (auto it = j.find(ti.key); it != j.end())
                             it->get_to(field.get_value());
                     }
             });
@@ -38,11 +38,11 @@ namespace nlohmann {
             boost::pfr::for_each_field(v, [&](auto &field) {
                 using T = std::decay_t<decltype(field)>;
                 if constexpr (cppxx::is_tagged_v<T>)
-                    if (auto [key, tag] = cppxx::json::TagInfo::from_tagged(field); key != "") {
+                    if (cppxx::json::TagInfo ti = cppxx::json::get_tag_info(field); ti.key != "") {
                         auto &val = field.get_value();
-                        if (tag.omitempty && cppxx::json::detail::is_empty_value(val))
+                        if (ti.omitempty && cppxx::json::detail::is_empty_value(val))
                             return;
-                        j[key] = val;
+                        j[ti.key] = val;
                     }
             });
         }
@@ -127,7 +127,7 @@ namespace cppxx::serde {
 
         template <typename T>
         void into(T &val) const {
-            val = nlohmann::json::parse(str, nullptr, true, ignore_comments);
+            nlohmann::json::parse(str, nullptr, true, ignore_comments).get_to(val);
         }
     };
 
@@ -140,6 +140,22 @@ namespace cppxx::serde {
         template <typename T>
         std::string from(const T &val) const {
             return nlohmann::json(val).dump(indent, indent_char, ensure_ascii);
+        }
+    };
+
+    template <typename T>
+    struct Serialize<nlohmann::json, T> {
+        nlohmann::json from(const T &v) const {
+            return v;
+        }
+    };
+
+    template <typename T>
+    struct Deserialize<nlohmann::json, T> {
+        const nlohmann::json &j;
+
+        void into(T &v) const {
+            j.get_to(v);
         }
     };
 } // namespace cppxx::serde

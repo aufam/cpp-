@@ -68,6 +68,15 @@ CPMAddPackage(
     OPTIONS         "YYJSON_INSTALL OFF"
 )
 
+CPMAddPackage(
+    NAME            rapidjson
+    GIT_REPOSITORY  "https://github.com/Tencent/rapidjson"
+    GIT_TAG         v1.1.0
+    DOWNLOAD_ONLY   YES
+)
+add_library(rapidjson INTERFACE)
+target_include_directories(rapidjson INTERFACE "${rapidjson_SOURCE_DIR}/include")
+
 ## toml lib
 CPMAddPackage(
     NAME            tomlplusplus
@@ -141,6 +150,7 @@ target_link_libraries(cppxx_private INTERFACE
     spdlog
     nlohmann_json
     yyjson
+    rapidjson
     tomlplusplus::tomlplusplus
     Boost::pfr
     magic_enum

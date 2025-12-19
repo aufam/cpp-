@@ -1,5 +1,5 @@
-#ifndef COMTRUE_TOML_TOML_H
-#define COMTRUE_TOML_TOML_H
+#ifndef CPPXX_TOML_TOML_H
+#define CPPXX_TOML_TOML_H
 
 #include <cpp++/tag.h>
 #include <unordered_map>
