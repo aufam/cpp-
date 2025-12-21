@@ -2,6 +2,8 @@
 #define CPPXX_SERDE_H
 
 #include <cpp++/tag.h>
+#include <cpp++/tuple.h>
+#include <array>
 
 namespace cppxx::serde {
     struct TagInfo {
@@ -11,14 +13,26 @@ namespace cppxx::serde {
         bool             noserde     = false;
         bool             positional  = false;
         std::string_view help        = "";
+
+        TagInfo() = default;
+    };
+
+    template <size_t N>
+    struct TagInfoTuple {
+        std::array<TagInfo, N> ts     = {};
+        bool                   is_obj = true;
     };
 
     template <typename T>
-    constexpr TagInfo get_tag_info(const Tag<T> &field, std::string_view tag, char separator = ',') {
+    constexpr TagInfo get_tag_info(const T &field, std::string_view tag, char separator = ',') {
         TagInfo ti    = {};
         bool    first = true;
 
-        for (std::string_view sv = field.get_tag(tag); !sv.empty();) {
+        std::string_view sv;
+        if constexpr (is_tagged_v<T>)
+            sv = field.get_tag(tag);
+
+        while (!sv.empty()) {
             size_t           next = sv.find(separator);
             std::string_view part = sv.substr(0, next);
 
@@ -41,6 +55,30 @@ namespace cppxx::serde {
         }
 
         return ti;
+    }
+
+    template <typename... T>
+    constexpr TagInfoTuple<sizeof...(T)>
+    get_tag_info_from_tuple(const std::tuple<T...> &fields, std::string_view tag, char separator = ',') {
+        TagInfoTuple<sizeof...(T)> ts       = {};
+        bool                       is_array = true;
+
+        std::apply(
+            [&](const auto &...item) {
+                size_t i = 0;
+                (
+                    [&]() {
+                        if (const TagInfo &t = ts.ts[i++] = get_tag_info(item, tag, separator); t.key != "")
+                            is_array &= t.positional;
+                    }(),
+                    ...
+                );
+            },
+            fields
+        );
+
+        ts.is_obj = !is_array;
+        return ts;
     }
 } // namespace cppxx::serde
 

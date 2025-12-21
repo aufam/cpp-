@@ -23,6 +23,17 @@ namespace cppxx {
 
     template <typename F, typename Tuple>
     inline constexpr bool is_invocable_with_tuple_v = is_invocable_with_tuple<F, Tuple>::value;
+
+    template <typename Tuple, typename F>
+    constexpr void tuple_for_each(Tuple &&tpl, F &&fn) {
+        std::apply(
+            [&](auto &...item) {
+                std::size_t i = 0;
+                (fn(item, i++), ...);
+            },
+            std::forward<Tuple>(tpl)
+        );
+    }
 } // namespace cppxx
 
 #endif

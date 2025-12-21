@@ -189,7 +189,7 @@ namespace cppxx::sql::sqlite3 {
 
             std::apply(
                 [&](auto &&...args) {
-                    size_t i = 1;
+                    int i = 1;
                     (Serialize<std::decay_t<decltype(args)>>{stmt, i++}.from(args), ...);
                 },
                 statement.params

@@ -19,31 +19,15 @@
 
 
 namespace cppxx::json::rapid_json {
-    template <typename From, typename Enable = void>
-    using Serialize = ::cppxx::serde::Serialize<rapidjson::Document, From, Enable>;
+    template <typename From>
+    using Serialize = ::cppxx::serde::Serialize<rapidjson::Value, From>;
 
-    template <typename To, typename Enable = void>
-    using Deserialize = ::cppxx::serde::Deserialize<rapidjson::Document, To, Enable>;
+    template <typename To>
+    using Deserialize = ::cppxx::serde::Deserialize<rapidjson::Value, To>;
 
-    template <typename T>
-    void parse(const std::string &str, T &val, uint32_t yyjson_read_flag = YYJSON_READ_NOFLAG);
+    using Dump = ::cppxx::serde::Dump<rapidjson::Document, std::string>;
 
-    template <typename T>
-    void parse_from_file(const std::string &path, T &val, uint32_t yyjson_read_flag = YYJSON_READ_NOFLAG);
-
-    template <typename T>
-    [[nodiscard]]
-    std::enable_if_t<std::is_default_constructible_v<T>, T>
-    parse(const std::string &str, uint32_t yyjson_read_flag = YYJSON_READ_NOFLAG);
-
-    template <typename T>
-    [[nodiscard]]
-    std::enable_if_t<std::is_default_constructible_v<T>, T>
-    parse_from_file(const std::string &path, uint32_t yyjson_read_flag = YYJSON_READ_NOFLAG);
-
-    template <typename T>
-    [[nodiscard]]
-    std::string dump(const T &val, uint32_t yyjson_write_flag = YYJSON_WRITE_NOFLAG);
+    using Parse = ::cppxx::serde::Deserialize<rapidjson::Document, std::string>;
 } // namespace cppxx::json::rapid_json
 
 
