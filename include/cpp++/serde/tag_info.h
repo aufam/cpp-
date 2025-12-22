@@ -61,21 +61,12 @@ namespace cppxx::serde {
     constexpr TagInfoTuple<sizeof...(T)>
     get_tag_info_from_tuple(const std::tuple<T...> &fields, std::string_view tag, char separator = ',') {
         TagInfoTuple<sizeof...(T)> ts       = {};
-        bool                       is_array = true;
+        bool                       is_array = sizeof...(T) > 0;
 
-        std::apply(
-            [&](const auto &...item) {
-                size_t i = 0;
-                (
-                    [&]() {
-                        if (const TagInfo &t = ts.ts[i++] = get_tag_info(item, tag, separator); t.key != "")
-                            is_array &= t.positional;
-                    }(),
-                    ...
-                );
-            },
-            fields
-        );
+        tuple_for_each(fields, [&](const auto &field, size_t i) {
+            if (const TagInfo &t = ts.ts[i] = get_tag_info(field, tag, separator); t.key != "")
+                is_array &= t.positional;
+        });
 
         ts.is_obj = !is_array;
         return ts;

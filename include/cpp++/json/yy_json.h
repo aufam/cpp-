@@ -4,6 +4,7 @@
 #include <cpp++/json/json.h>
 #include <cpp++/serde/serialize.h>
 #include <cpp++/serde/deserialize.h>
+#include <cpp++/serde/error.h>
 #include <cpp++/defer.h>
 #include <array>
 #include <variant>
@@ -56,55 +57,8 @@ namespace cppxx::json::yy_json {
     template <typename T>
     [[nodiscard]]
     std::string dump(const T &val, yyjson_write_flag = YYJSON_WRITE_NOFLAG);
-
-
-    class error : public std::exception {
-        mutable std::string what_;
-
-    public:
-        std::string context;
-        std::string msg;
-
-        explicit error(std::string msg)
-            : msg(std::move(msg)) {}
-
-        error(std::string_view key, std::string msg)
-            : context("." + std::string(key))
-            , msg(std::move(msg)) {}
-
-        error(size_t key, std::string msg)
-            : context("[" + std::to_string(key) + "]")
-            , msg(std::move(msg)) {}
-
-        error add_context(std::string_view key) & {
-            error e(std::move(msg));
-            e.context = "." + std::string(key) + std::move(context);
-            return e;
-        }
-
-        error add_context(size_t key) & {
-            error e(std::move(msg));
-            e.context = "[" + std::to_string(key) + "]" + std::move(context);
-            return e;
-        }
-
-        const char *what() const noexcept override {
-            what_ = "yyjson error at " + (context.empty() ? "<root>" : context) + ": " + msg;
-            return what_.c_str();
-        }
-
-        static error type_mismatch_error(const char *expect, yyjson_val *val) {
-            return error("Type mismatch error: expect `" + std::string(expect) + "` got `" + yyjson_get_type_desc(val) + "`");
-        }
-
-        static error size_mismatch_error(size_t expect, size_t got) {
-            return error("Size mismatch error: expect `" + std::to_string(expect) + "` got `" + std::to_string(got) + "`");
-        }
-    };
 } // namespace cppxx::json::yy_json
 
-
-#define error ::cppxx::json::yy_json::error
 
 namespace cppxx::serde {
     template <>
@@ -166,7 +120,7 @@ namespace cppxx::serde {
 
         void into(bool &v) const {
             if (!yyjson_is_bool(val))
-                throw error::type_mismatch_error("bool", val);
+                throw error::type_mismatch_error("bool", yyjson_get_type_desc(val));
             v = yyjson_get_bool(val);
         }
     };
@@ -193,7 +147,7 @@ namespace cppxx::serde {
 
         void into(T &v) const {
             if (!yyjson_is_sint(val) && !yyjson_is_uint(val))
-                throw error::type_mismatch_error("sint", val);
+                throw error::type_mismatch_error("sint", yyjson_get_type_desc(val));
             v = (T)yyjson_get_sint(val);
         }
     };
@@ -214,7 +168,7 @@ namespace cppxx::serde {
 
         void into(T &v) const {
             if (!yyjson_is_uint(val))
-                throw error::type_mismatch_error("uint", val);
+                throw error::type_mismatch_error("uint", yyjson_get_type_desc(val));
             v = (T)yyjson_get_uint(val);
         }
     };
@@ -235,7 +189,7 @@ namespace cppxx::serde {
 
         void into(T &v) const {
             if (!yyjson_is_real(val))
-                throw error::type_mismatch_error("real", val);
+                throw error::type_mismatch_error("real", yyjson_get_type_desc(val));
             v = (T)yyjson_get_real(val);
         }
     };
@@ -284,7 +238,7 @@ namespace cppxx::serde {
 
         void into(std::string &v) const {
             if (!yyjson_is_str(val))
-                throw error::type_mismatch_error("string", val);
+                throw error::type_mismatch_error("string", yyjson_get_type_desc(val));
             v = yyjson_get_str(val);
         }
 
@@ -351,7 +305,7 @@ namespace cppxx::serde {
         void into(std::array<T, N> &v) const {
             auto arr = this->val;
             if (!yyjson_is_arr(arr))
-                throw error::type_mismatch_error("array", arr);
+                throw error::type_mismatch_error("array", yyjson_get_type_desc(arr));
             if (auto n = yyjson_arr_size(arr); N != n)
                 throw error::size_mismatch_error(N, n);
 
@@ -391,7 +345,7 @@ namespace cppxx::serde {
         void into(std::vector<T> &v) const {
             auto arr = this->val;
             if (!yyjson_is_arr(arr))
-                throw error::type_mismatch_error("array", arr);
+                throw error::type_mismatch_error("array", yyjson_get_type_desc(arr));
 
             v.resize(yyjson_arr_size(arr));
             size_t      idx, max;
@@ -417,53 +371,43 @@ namespace cppxx::serde {
             const bool                                is_obj = ti.is_obj;
 
             yyjson_mut_val *obj_or_arr = is_obj ? yyjson_mut_obj(doc) : yyjson_mut_arr(doc);
-            std::apply(
-                [&](const auto &...item) {
-                    size_t idx = 0;
-                    (
-                        [&]() {
-                            const size_t   i = idx++;
-                            const TagInfo &t = ts[i];
-                            const auto    &v = [&]() -> decltype(auto) {
-                                if constexpr (is_tagged_v<std::decay_t<decltype(item)>>) {
-                                    return item.get_value();
-                                } else {
-                                    return item;
-                                }
-                            }();
-                            using T = std::decay_t<decltype(v)>;
+            tuple_for_each(tpl, [&](const auto &item, const size_t i) {
+                const TagInfo &t = ts[i];
+                const auto    &v = [&]() -> decltype(auto) {
+                    if constexpr (is_tagged_v<std::decay_t<decltype(item)>>) {
+                        return item.get_value();
+                    } else {
+                        return item;
+                    }
+                }();
+                using T = std::decay_t<decltype(v)>;
 
-                            if (is_obj && t.key == "")
-                                return;
+                if (is_obj && t.key == "")
+                    return;
 
-                            if (t.omitempty && cppxx::json::detail::is_empty_value(v))
-                                return;
+                if (t.omitempty && cppxx::json::detail::is_empty_value(v))
+                    return;
 
-                            yyjson_mut_val *val;
-                            try {
-                                if (t.noserde)
-                                    if constexpr (std::is_same_v<T, std::string>)
-                                        val = Serialize<yyjson_mut_val, std::string>{doc}.from_raw(v);
-                                    else
-                                        throw error("field with tag `noserde` can only be serialized from std::string");
-                                else
-                                    val = Serialize<yyjson_mut_val, T>{doc}.from(v);
-                            } catch (error &e) {
-                                if (is_obj)
-                                    throw e.add_context(t.key);
-                                else
-                                    throw e.add_context(i);
-                            }
-                            if (is_obj)
-                                yyjson_mut_obj_add(obj_or_arr, yyjson_mut_strn(doc, t.key.data(), t.key.size()), val);
-                            else
-                                yyjson_mut_arr_append(obj_or_arr, val);
-                        }(),
-                        ...
-                    );
-                },
-                tpl
-            );
+                yyjson_mut_val *val;
+                try {
+                    if (t.noserde)
+                        if constexpr (std::is_same_v<T, std::string>)
+                            val = Serialize<yyjson_mut_val, std::string>{doc}.from_raw(v);
+                        else
+                            throw error("field with tag `noserde` can only be serialized from std::string");
+                    else
+                        val = Serialize<yyjson_mut_val, T>{doc}.from(v);
+                } catch (error &e) {
+                    if (is_obj)
+                        throw e.add_context(t.key);
+                    else
+                        throw e.add_context(i);
+                }
+                if (is_obj)
+                    yyjson_mut_obj_add(obj_or_arr, yyjson_mut_strn(doc, t.key.data(), t.key.size()), val);
+                else
+                    yyjson_mut_arr_append(obj_or_arr, val);
+            });
             return obj_or_arr;
         }
     };
@@ -481,57 +425,47 @@ namespace cppxx::serde {
             yyjson_val *arr = this->val;
 
             if (is_obj && !yyjson_is_obj(obj))
-                throw error::type_mismatch_error("object", obj);
+                throw error::type_mismatch_error("object", yyjson_get_type_desc(obj));
             if (!is_obj) {
                 if (!yyjson_is_arr(arr))
-                    throw error::type_mismatch_error("array", arr);
+                    throw error::type_mismatch_error("array", yyjson_get_type_desc(arr));
                 else if (auto n = yyjson_arr_size(arr); sizeof...(Ts) != n)
                     throw error::size_mismatch_error(sizeof...(Ts), n);
             }
 
-            size_t idx = 0;
-            std::apply(
-                [&](auto &...item) {
-                    (
-                        [&]() {
-                            const auto     i = idx++;
-                            const TagInfo &t = ts[i];
-                            auto          &v = [&]() -> decltype(auto) {
-                                if constexpr (is_tagged_v<std::decay_t<decltype(item)>>) {
-                                    return item.get_value();
-                                } else {
-                                    return item;
-                                }
-                            }();
-                            using T = std::decay_t<decltype(v)>;
+            tuple_for_each(tpl, [&](auto &item, const size_t i) {
+                const TagInfo &t = ts[i];
+                auto          &v = [&]() -> decltype(auto) {
+                    if constexpr (is_tagged_v<std::decay_t<decltype(item)>>) {
+                        return item.get_value();
+                    } else {
+                        return item;
+                    }
+                }();
+                using T = std::decay_t<decltype(v)>;
 
-                            if (is_obj && t.key == "")
-                                return;
+                if (is_obj && t.key == "")
+                    return;
 
-                            yyjson_val *val = is_obj ? yyjson_obj_getn(obj, t.key.data(), t.key.size()) : yyjson_arr_get(arr, i);
-                            if (!val && t.skipmissing)
-                                return;
+                yyjson_val *val = is_obj ? yyjson_obj_getn(obj, t.key.data(), t.key.size()) : yyjson_arr_get(arr, i);
+                if (!val && t.skipmissing)
+                    return;
 
-                            try {
-                                if (t.noserde)
-                                    if constexpr (std::is_same_v<T, std::string>)
-                                        Deserialize<yyjson_val, std::string>{val}.into_raw(v);
-                                    else
-                                        throw error("field with tag `noserde` can only be deserialized into std::string");
-                                else
-                                    Deserialize<yyjson_val, T>{val}.into(v);
-                            } catch (error &e) {
-                                if (is_obj)
-                                    throw e.add_context(t.key);
-                                else
-                                    throw e.add_context(i);
-                            }
-                        }(),
-                        ...
-                    );
-                },
-                tpl
-            );
+                try {
+                    if (t.noserde)
+                        if constexpr (std::is_same_v<T, std::string>)
+                            Deserialize<yyjson_val, std::string>{val}.into_raw(v);
+                        else
+                            throw error("field with tag `noserde` can only be deserialized into std::string");
+                    else
+                        Deserialize<yyjson_val, T>{val}.into(v);
+                } catch (error &e) {
+                    if (is_obj)
+                        throw e.add_context(t.key);
+                    else
+                        throw e.add_context(i);
+                }
+            });
         }
     };
 
@@ -576,7 +510,7 @@ namespace cppxx::serde {
                 ...
             );
             if (!done)
-                throw error::type_mismatch_error("variant", val);
+                throw error::type_mismatch_error("variant", yyjson_get_type_desc(val));
         }
     };
 
@@ -606,7 +540,7 @@ namespace cppxx::serde {
         void into(std::unordered_map<std::string, T> &v) {
             auto obj = this->val;
             if (!yyjson_is_obj(obj))
-                throw error::type_mismatch_error("object", obj);
+                throw error::type_mismatch_error("object", yyjson_get_type_desc(obj));
             size_t      idx, max;
             yyjson_val *key, *val;
             yyjson_obj_foreach(obj, idx, max, key, val) {
@@ -718,7 +652,6 @@ namespace cppxx::serde {
 #endif
 } // namespace cppxx::serde
 
-#undef error
 
 namespace cppxx::json::yy_json {
     template <typename T>

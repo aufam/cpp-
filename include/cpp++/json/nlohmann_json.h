@@ -66,44 +66,34 @@ namespace nlohmann {
             else
                 j = nlohmann::json::array();
 
-            std::apply(
-                [&](const auto &...item) {
-                    size_t idx = 0;
-                    (
-                        [&]() {
-                            const auto             i = idx++;
-                            cppxx::serde::TagInfo &t = ti[i];
-                            const auto            &v = [&]() -> decltype(auto) {
-                                if constexpr (cppxx::is_tagged_v<std::decay_t<decltype(item)>>) {
-                                    return item.get_value();
-                                } else {
-                                    return item;
-                                }
-                            }();
-                            using T = std::decay_t<decltype(v)>;
+            cppxx::tuple_for_each(tpl, [&](const auto &item, const size_t i) {
+                const cppxx::serde::TagInfo &t = ti[i];
+                const auto                  &v = [&]() -> decltype(auto) {
+                    if constexpr (cppxx::is_tagged_v<std::decay_t<decltype(item)>>) {
+                        return item.get_value();
+                    } else {
+                        return item;
+                    }
+                }();
+                using T = std::decay_t<decltype(v)>;
 
-                            if (is_obj && t.key == "")
-                                return;
+                if (is_obj && t.key == "")
+                    return;
 
-                            if (t.omitempty && cppxx::json::detail::is_empty_value(v))
-                                return;
+                if (t.omitempty && cppxx::json::detail::is_empty_value(v))
+                    return;
 
-                            auto &val = is_obj ? j[t.key] : j[i];
-                            if (t.noserde)
-                                if constexpr (std::is_same_v<T, std::string>)
-                                    val = nlohmann::json::parse(v);
-                                else
-                                    throw nlohmann::json::type_error::create(
-                                        0, "field with tag `noserde` can only be serialized from std::string", nullptr
-                                    );
-                            else
-                                val = nlohmann::json(v);
-                        }(),
-                        ...
-                    );
-                },
-                tpl
-            );
+                auto &val = is_obj ? j[t.key] : j[i];
+                if (t.noserde)
+                    if constexpr (std::is_same_v<T, std::string>)
+                        val = nlohmann::json::parse(v);
+                    else
+                        throw nlohmann::json::type_error::create(
+                            0, "field with tag `noserde` can only be serialized from std::string", nullptr
+                        );
+                else
+                    val = nlohmann::json(v);
+            });
         }
 
         static void from_json(const json &j, std::tuple<Ts...> &tpl) {
@@ -121,6 +111,40 @@ namespace nlohmann {
             }
 
             size_t idx = 0;
+            cppxx::tuple_for_each(tpl, [&](auto &item, const size_t i) {
+                cppxx::serde::TagInfo &t = ti[i];
+                auto                  &v = [&]() -> decltype(auto) {
+                    if constexpr (cppxx::is_tagged_v<std::decay_t<decltype(item)>>) {
+                        return item.get_value();
+                    } else {
+                        return item;
+                    }
+                }();
+                using T = std::decay_t<decltype(v)>;
+
+                if (is_obj && t.key == "")
+                    return;
+
+                const nlohmann::json *ptr;
+                try {
+                    ptr = is_obj ? &j.at(t.key) : &j.at(i);
+                } catch (...) {
+                    if (t.skipmissing)
+                        return;
+                    else
+                        throw;
+                }
+
+                if (t.noserde)
+                    if constexpr (std::is_same_v<T, std::string>)
+                        v = ptr->dump();
+                    else
+                        throw nlohmann::json::type_error::create(
+                            0, "field with tag `noserde` can only be deserialized into std::string", nullptr
+                        );
+                else
+                    ptr->get_to(v);
+            });
             std::apply(
                 [&](auto &...item) {
                     (
