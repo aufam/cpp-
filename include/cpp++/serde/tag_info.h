@@ -1,7 +1,8 @@
-#ifndef CPPXX_SERDE_H
-#define CPPXX_SERDE_H
+#ifndef CPPXX_SERDE_TAG_INFO_H
+#define CPPXX_SERDE_TAG_INFO_H
 
 #include <cpp++/tag.h>
+#include <cpp++/optional.h>
 #include <cpp++/tuple.h>
 #include <array>
 
@@ -72,5 +73,36 @@ namespace cppxx::serde {
         return ts;
     }
 } // namespace cppxx::serde
+
+namespace cppxx::serde::detail {
+    template <typename T>
+    decltype(auto) get_underlying_value(T &value) {
+        if constexpr (is_tagged_v<std::decay_t<decltype(value)>>)
+            return value.get_value();
+        else
+            return value;
+    }
+
+    template <typename, typename = void>
+    struct has_empty : std::false_type {};
+
+    template <typename T>
+    struct has_empty<T, std::void_t<decltype(std::declval<const T &>().empty())>> : std::true_type {};
+
+    template <typename T>
+    std::enable_if_t<!has_empty<T>::value, bool> is_empty_value(const T &value) {
+        if constexpr (is_optional<T>::value)
+            return !value.has_value();
+        else if constexpr (std::is_arithmetic_v<T>)
+            return !bool(value);
+        else
+            return false;
+    }
+
+    template <typename T>
+    std::enable_if_t<has_empty<T>::value, bool> is_empty_value(const T &value) {
+        return value.empty();
+    }
+} // namespace cppxx::serde::detail
 
 #endif

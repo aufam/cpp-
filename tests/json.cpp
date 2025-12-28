@@ -5,52 +5,68 @@
 
 using namespace cppxx;
 
-struct Person {
-    // required fields
-    Tag<std::string> name = "json:`name`";
-    Tag<int>         age  = "json:`age`";
-
-    // optional field
-    Tag<std::optional<std::string>> address = "json:`address`";
-
-    // fallback if missing
-    Tag<std::string> department = {"json:`department,skipmissing`", "unset"};
-
-    // omit when empty (go-style omitempty)
-    Tag<int> salary = "json:`salary,omitempty`";
-
-    // RFC3339 UTC only: YYYY-MM-DDTHH:MM:SSZ
-    Tag<std::tm> created_at = "json:`createdAt`";
-
-    // ignored field
-    int dummy = 42;
-};
-
-static_assert(std::is_aggregate_v<Person>, "Person must be pure aggregate");
-
 namespace {
 
+    struct Person {
+        // required fields
+        Tag<std::string> name = "json:`name`";
+        Tag<int>         age  = "json:`age`";
+
+        // optional field
+        Tag<std::optional<std::string>> address = "json:`address`";
+
+        // fallback if missing
+        Tag<std::string> department = {"json:`department,skipmissing`", "unset"};
+
+        // omit when empty (go-style omitempty)
+        Tag<int> salary = "json:`salary,omitempty`";
+
+        // RFC3339 UTC only: YYYY-MM-DDTHH:MM:SSZ
+        Tag<std::tm> created_at = "json:`createdAt`";
+
+        // ignored field
+        int dummy = 42;
+
+        void *dummy2 = nullptr;
+    };
+
+    static_assert(std::is_aggregate_v<Person>, "Person must be pure aggregate");
+
+    static_assert(cppxx::serde::is_serializable<yyjson_mut_val, Person>::value);
+    static_assert(cppxx::serde::is_deserializable<yyjson_val, Person>::value);
+
+    static_assert(!cppxx::serde::is_serializable<yyjson_mut_val, void *>::value);
+    static_assert(!cppxx::serde::is_deserializable<yyjson_val, void *>::value);
+
+    static_assert(cppxx::serde::is_serializable<nlohmann::json, Person>::value);
+    static_assert(cppxx::serde::is_deserializable<nlohmann::json, Person>::value);
+
+    static_assert(!cppxx::serde::is_serializable<nlohmann::json, void *>::value);
+    static_assert(!cppxx::serde::is_deserializable<nlohmann::json, void *>::value);
+
+    static_assert(cppxx::serde::is_serializable<nlohmann::json, std::unordered_map<std::string, std::string>>::value);
+
     constexpr const char *json_full = R"json(
-{
-  "name": "Sucipto",
-  "age": 24,
-  "address": "Jakarta",
-  "department": "Engineering",
-  "salary": 1000,
-  "createdAt": "2024-01-02T03:04:05Z"
-}
-)json";
+    {
+      "name": "Sucipto",
+      "age": 24,
+      "address": "Jakarta",
+      "department": "Engineering",
+      "salary": 1000,
+      "createdAt": "2024-01-02T03:04:05Z"
+    }
+    )json";
 
 
     constexpr const char *json_missing_department = R"json(
-{
-  "name": "Sucipto",
-  "age": 24,
-  "address": "Jakarta",
-  "salary": 1000,
-  "createdAt": "2024-01-02T03:04:05Z"
-}
-)json";
+    {
+      "name": "Sucipto",
+      "age": 24,
+      "address": "Jakarta",
+      "salary": 1000,
+      "createdAt": "2024-01-02T03:04:05Z"
+    }
+    )json";
 
 } // namespace
 

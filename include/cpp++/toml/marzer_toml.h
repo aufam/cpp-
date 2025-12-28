@@ -54,12 +54,12 @@ namespace cppxx::serde {
         std::string from(const T &v) const {
             auto val = Serialize<::toml::node, T>{}.from(v);
 
-            if (::toml::table *tbl = val.as_table()) {
+            if (::toml::table *tbl = val->as_table()) {
                 std::ostringstream oss;
                 oss << *tbl;
                 return oss.str();
             } else
-                throw error::type_mismatch_error("tbl", std::string(::toml::impl::node_type_friendly_names[(int)val.type()]));
+                throw type_mismatch_error("table", std::string(::toml::impl::node_type_friendly_names[(int)val->type()]));
         }
     };
 
@@ -97,7 +97,7 @@ namespace cppxx::serde {
             if (auto val = node->as_boolean())
                 v = val->get();
             else
-                throw error::type_mismatch_error("bool", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
+                throw type_mismatch_error("bool", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
         }
     };
 
@@ -117,7 +117,7 @@ namespace cppxx::serde {
             if (auto val = node->as_integer())
                 v = (T)val->get();
             else
-                throw error::type_mismatch_error("int", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
+                throw type_mismatch_error("int", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
         }
     };
 
@@ -137,7 +137,7 @@ namespace cppxx::serde {
             if (auto val = node->as_floating_point())
                 v = (T)val->get();
             else
-                throw error::type_mismatch_error("float", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
+                throw type_mismatch_error("float", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
         }
     };
 
@@ -178,9 +178,7 @@ namespace cppxx::serde {
             if (auto val = node->as_string())
                 v = val->get();
             else
-                throw error::type_mismatch_error(
-                    "string", std::string(::toml::impl::node_type_friendly_names[(int)node->type()])
-                );
+                throw type_mismatch_error("string", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
         }
 
         void into_raw(std::string &v) const {
@@ -189,7 +187,7 @@ namespace cppxx::serde {
                 oss << *tbl;
                 v = oss.str();
             } else
-                throw error::type_mismatch_error("table", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
+                throw type_mismatch_error("table", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
         }
     };
 
@@ -237,17 +235,18 @@ namespace cppxx::serde {
         void into(std::array<T, N> &v) const {
             auto arr = node->as_array();
             if (!arr)
-                throw error::type_mismatch_error("array", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
+                throw type_mismatch_error("array", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
 
             const size_t n = arr->size();
             if (n != N)
-                throw error::size_mismatch_error(N, n);
+                throw size_mismatch_error(N, n);
 
             for (size_t i = 0; i < n; ++i)
                 try {
                     Deserialize<::toml::node, T>{arr->get(i)}.into(v[i]);
                 } catch (error &e) {
-                    throw e.add_context(i);
+                    e.add_context(i);
+                    throw;
                 }
         };
     };
@@ -269,7 +268,7 @@ namespace cppxx::serde {
         void into(std::vector<T> &v) const {
             auto arr = node->as_array();
             if (!arr)
-                throw error::type_mismatch_error("array", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
+                throw type_mismatch_error("array", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
 
             const size_t n = arr->size();
             v.resize(n);
@@ -277,7 +276,8 @@ namespace cppxx::serde {
                 try {
                     Deserialize<::toml::node, T>{arr->get(i)}.into(v[i]);
                 } catch (error &e) {
-                    throw e.add_context(i);
+                    e.add_context(i);
+                    throw;
                 }
         }
     };
@@ -289,23 +289,15 @@ namespace cppxx::serde {
             const std::array<TagInfo, sizeof...(Ts)> &ts     = ti.ts;
             const bool                                is_obj = ti.is_obj;
 
-            std::unique_ptr<::toml::node> node = is_obj ? std::make_unique<::toml::table>() : std::make_unique<::toml::node>();
+            std::unique_ptr<::toml::node> node =
+                is_obj ? std::unique_ptr<::toml::node>(new ::toml::table) : std::unique_ptr<::toml::node>(new ::toml::array);
             tuple_for_each(tpl, [&](const auto &item, const size_t i) {
                 const TagInfo &t = ts[i];
-                const auto    &v = [&]() -> decltype(auto) {
-                    if constexpr (is_tagged_v<std::decay_t<decltype(item)>>) {
-                        return item.get_value();
-                    } else {
-                        return item;
-                    }
-                }();
-                using T = std::decay_t<decltype(v)>;
+                const auto    &v = detail::get_underlying_value(item);
+                using T          = std::decay_t<decltype(v)>;
 
-                if (is_obj && t.key == "")
+                if (!is_serializable_v<::toml::node, T> || (is_obj && t.key == "") || (t.omitempty && detail::is_empty_value(v)))
                     return;
-
-                // if (t.omitempty && cppxx::json::detail::is_empty_value(v))
-                //     return;
 
                 std::unique_ptr<::toml::node> val;
                 try {
@@ -314,13 +306,16 @@ namespace cppxx::serde {
                             val = Serialize<::toml::node, std::string>{}.from_raw(v);
                         else
                             throw error("field with tag `noserde` can only be serialized from std::string");
-                    else
-                        val = Serialize<::toml::node, T>{}.from(v);
+                    else {
+                        if constexpr (is_serializable_v<::toml::node, T>)
+                            val = Serialize<::toml::node, T>{}.from(v);
+                    }
                 } catch (error &e) {
                     if (is_obj)
-                        throw e.add_context(t.key);
+                        e.add_context(t.key);
                     else
-                        throw e.add_context(i);
+                        e.add_context(i);
+                    throw;
                 }
                 if (is_obj)
                     node->as_table()->insert_or_assign(t.key, std::move(*val));
@@ -344,20 +339,14 @@ namespace cppxx::serde {
             auto arr = node->as_array();
             auto tbl = node->as_table();
             if (!is_obj && !arr)
-                throw error::type_mismatch_error("array", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
+                throw type_mismatch_error("array", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
             if (is_obj && !tbl)
-                throw error::type_mismatch_error("table", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
+                throw type_mismatch_error("table", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
 
             tuple_for_each(tpl, [&](auto &item, const size_t i) {
                 const TagInfo &t = ts[i];
-                auto          &v = [&]() -> decltype(auto) {
-                    if constexpr (is_tagged_v<std::decay_t<decltype(item)>>) {
-                        return item.get_value();
-                    } else {
-                        return item;
-                    }
-                }();
-                using T = std::decay_t<decltype(v)>;
+                auto          &v = detail::get_underlying_value(item);
+                using T          = std::decay_t<decltype(v)>;
 
                 if (is_obj && t.key == "")
                     return;
@@ -372,13 +361,16 @@ namespace cppxx::serde {
                             Deserialize<::toml::node, std::string>{val}.into_raw(v);
                         else
                             throw error("field with tag `noserde` can only be deserialized into std::string");
-                    else
-                        Deserialize<::toml::node, T>{val}.into(v);
+                    else {
+                        if constexpr (is_deserializable_v<::toml::node, T>)
+                            Deserialize<::toml::node, T>{val}.into(v);
+                    }
                 } catch (error &e) {
                     if (is_obj)
-                        throw e.add_context(t.key);
+                        e.add_context(t.key);
                     else
-                        throw e.add_context(i);
+                        e.add_context(i);
+                    throw;
                 }
             });
         }
@@ -404,7 +396,8 @@ namespace cppxx::serde {
     protected:
         template <size_t... I>
         void try_for_each(std::variant<T...> &v, std::index_sequence<I...>) const {
-            bool done = false;
+            bool        done = false;
+            std::string type_names;
             (
                 [&]() {
                     using Elem = std::tuple_element_t<I, std::tuple<T...>>;
@@ -415,16 +408,16 @@ namespace cppxx::serde {
                             v    = std::move(element);
                             done = true;
                         }
-                    } catch (error &e) {
-                        std::ignore = e;
+                    } catch (type_mismatch_error &e) {
+                        type_names += e.expected_type + '|';
                     }
                 }(),
                 ...
             );
-            if (!done)
-                throw error::type_mismatch_error(
-                    "variant", std::string(::toml::impl::node_type_friendly_names[(int)node->type()])
-                );
+            if (!done) {
+                type_names.pop_back();
+                throw type_mismatch_error(type_names, std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
+            }
         }
     };
 
@@ -446,14 +439,15 @@ namespace cppxx::serde {
         void into(std::unordered_map<std::string, T> &v) const {
             auto table = node->as_table();
             if (!table)
-                throw error::type_mismatch_error("table", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
+                throw type_mismatch_error("table", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
 
             for (auto [key, node] : *table) {
                 auto item = T{};
                 try {
                     Deserialize<::toml::node, T>{&node}.into(item);
                 } catch (error &e) {
-                    throw e.add_context(std::string_view(key));
+                    e.add_context(std::string_view(key));
+                    throw;
                 }
                 v.emplace(std::string(key), std::move(item));
             }
@@ -491,7 +485,7 @@ namespace cppxx::serde {
                 to_tm(val->get().time, v);
                 to_tm(val->get().date, v);
             } else
-                throw error::type_mismatch_error("time", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
+                throw type_mismatch_error("time", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
         }
 
         static void to_tm(const ::toml::date &d, std::tm &tm) {

@@ -1,3 +1,6 @@
+#ifndef CPPXX_SERDE_ERROR_H
+#define CPPXX_SERDE_ERROR_H
+
 #include <exception>
 #include <string>
 
@@ -35,13 +38,22 @@ namespace cppxx::serde {
             what_ = "Error at " + (context.empty() ? "<root>" : context) + ": " + msg;
             return what_.c_str();
         }
+    };
 
-        static error type_mismatch_error(const std::string &expect, const std::string &got) {
-            return error("Type mismatch error: expect `" + expect + "` got `" + got + "`");
-        }
+    class type_mismatch_error : public error {
+    public:
+        std::string expected_type;
 
-        static error size_mismatch_error(size_t expect, size_t got) {
-            return error("Size mismatch error: expect `" + std::to_string(expect) + "` got `" + std::to_string(got) + "`");
-        }
+        type_mismatch_error(const std::string &expected_type, const std::string &got)
+            : error("Type mismatch error: expect `" + expected_type + "` got `" + got + "`")
+            , expected_type(expected_type) {}
+    };
+
+    class size_mismatch_error : public error {
+    public:
+        size_mismatch_error(size_t expect, size_t got)
+            : error("Size mismatch error: expect `" + std::to_string(expect) + "` got `" + std::to_string(got) + "`") {}
     };
 } // namespace cppxx::serde
+
+#endif

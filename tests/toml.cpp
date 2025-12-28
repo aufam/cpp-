@@ -3,46 +3,45 @@
 
 using namespace cppxx;
 
-struct Person {
-    // required fields
-    Tag<std::string> name = "toml:`name`";
-    Tag<int>         age  = "toml:`age`";
-
-    // optional field
-    Tag<std::optional<std::string>> address = "toml:`address`";
-
-    // fallback if missing
-    Tag<std::string> department = {"toml:`department,skipmissing`", "unset"};
-
-    // omit when empty (go-style omitempty)
-    Tag<int> salary = "toml:`salary,omitempty`";
-
-    // RFC3339 UTC only: YYYY-MM-DDTHH:MM:SSZ
-    Tag<std::tm> created_at = "toml:`createdAt`";
-
-    // ignored field
-    int dummy = 42;
-};
-
 namespace {
+    struct Person {
+        // required fields
+        Tag<std::string> name = "toml:`name`";
+        Tag<int>         age  = "toml:`age`";
+
+        // optional field
+        Tag<std::optional<std::string>> address = "toml:`address`";
+
+        // fallback if missing
+        Tag<std::string> department = {"toml:`department,skipmissing`", "unset"};
+
+        // omit when empty (go-style omitempty)
+        Tag<int> salary = "toml:`salary,omitempty`";
+
+        // RFC3339 UTC only: YYYY-MM-DDTHH:MM:SSZ
+        Tag<std::tm> created_at = "toml:`createdAt`";
+
+        // ignored fields
+        int   dummy = 42;
+        void *ptr   = nullptr;
+    };
 
     constexpr const char *toml_full = R"toml(
-name = "Sucipto"
-age = 24
-address = "Jakarta"
-department = "Engineering"
-salary = 1000
-createdAt = 2024-01-02T03:04:05Z
-)toml";
+    name = "Sucipto"
+    age = 24
+    address = "Jakarta"
+    department = "Engineering"
+    salary = 1000
+    createdAt = 2024-01-02T03:04:05Z
+    )toml";
 
     constexpr const char *toml_missing_department = R"toml(
-name = "Sucipto"
-age = 24
-address = "Jakarta"
-salary = 1000
-createdAt = 2024-01-02T03:04:05Z
-)toml";
-
+    name = "Sucipto"
+    age = 24
+    address = "Jakarta"
+    salary = 1000
+    createdAt = 2024-01-02T03:04:05Z
+    )toml";
 } // namespace
 
 TEST(cppxx, marzer_toml_parse_full) {

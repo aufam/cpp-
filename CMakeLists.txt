@@ -32,6 +32,7 @@ endif()
 
 # system libraries
 find_package(SQLite3 REQUIRED)
+find_package(Protobuf REQUIRED STATIC)
 
 
 # external libraries
@@ -186,6 +187,7 @@ if (CPPXX_BUILD_CMD)
     target_link_libraries(cmd PRIVATE
         cppxx
         cppxx_private
+        protobuf::libprotobuf
     )
 
     target_link_options(cmd PRIVATE
@@ -206,6 +208,7 @@ if (CPPXX_BUILD_TESTS)
         gtest_main
         httplib
         SQLite::SQLite3
+        protobuf::libprotobuf
     )
 
 	enable_testing()
