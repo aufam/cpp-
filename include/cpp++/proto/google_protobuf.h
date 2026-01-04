@@ -40,6 +40,66 @@ namespace cppxx::proto::google_protobuf {
     std::string dump(const T &val);
 } // namespace cppxx::proto::google_protobuf
 
+namespace cppxx::proto::google_protobuf::detail {
+    template <typename T>
+    struct is_bytes : std::false_type {};
+
+    template <size_t N>
+    struct is_bytes<std::array<uint8_t, N>> : std::true_type {};
+
+    template <>
+    struct is_bytes<std::vector<uint8_t>> : std::true_type {};
+
+    template <>
+    struct is_bytes<std::string> : std::true_type {};
+
+
+    template <typename T>
+    struct is_repeated : std::false_type {};
+
+    template <typename T, size_t N>
+    struct is_repeated<std::array<T, N>> : std::true_type {};
+
+    template <typename T>
+    struct is_repeated<std::vector<T>> : std::true_type {};
+
+
+    template <typename T>
+    struct is_message : std::false_type {};
+
+    template <typename... Ts>
+    struct is_message<std::tuple<Ts...>> : std::true_type {};
+
+
+    template <typename T>
+    class SerializeDispatcher {
+    public:
+        google::protobuf::io::CodedOutputStream &doc;
+
+        explicit SerializeDispatcher(google::protobuf::io::CodedOutputStream &doc)
+            : doc(doc) {}
+
+        void from(const Tag<T> &v) const {
+            from(v.get_value(), proto::get_tag_info(v));
+        }
+
+        void from(const T &v, const cppxx::serde::TagInfo &t) const {
+            if (t.key != "" && !(t.omitempty && cppxx::serde::detail::is_empty_value(v)))
+                from(v, proto::get_field_number(t));
+        }
+
+        virtual void from(const T &v, int field_number) const = 0;
+    };
+
+    class DeserializeDispatcher {
+    public:
+        google::protobuf::io::CodedInputStream &doc;
+
+        explicit DeserializeDispatcher(google::protobuf::io::CodedInputStream &doc)
+            : doc(doc) {}
+    };
+} // namespace cppxx::proto::google_protobuf::detail
+
 namespace cppxx::serde {
     template <>
     struct Dump<google::protobuf::io::CodedOutputStream, std::string> {
@@ -49,12 +109,10 @@ namespace cppxx::serde {
             google::protobuf::io::StringOutputStream os(&buffer);
             google::protobuf::io::CodedOutputStream  doc(&os);
 
-            google::protobuf::io::ArrayInputStream ais(buffer.data(), (int)buffer.size());
-
             tuple_for_each(tpl, [&](const auto &v, size_t) {
                 using T = std::decay_t<decltype(v)>;
                 if constexpr (is_serializable_v<google::protobuf::io::CodedOutputStream, T>)
-                    Serialize<google::protobuf::io::CodedOutputStream, T>{doc}.from(v);
+                    Serialize<google::protobuf::io::CodedOutputStream, T>(doc).from(v);
             });
 
             return buffer;
@@ -181,29 +239,142 @@ namespace cppxx::serde {
         }
     };
 
-    // bool
-    template <>
-    struct Serialize<google::protobuf::io::CodedOutputStream, Tag<bool>> {
-        google::protobuf::io::CodedOutputStream &doc;
+    // varint
+    template <typename T>
+    struct Serialize<
+        google::protobuf::io::CodedOutputStream,
+        Tag<T>,
+        std::enable_if_t<std::is_integral_v<T> || std::is_enum_v<T>>>
+        : public proto::google_protobuf::detail::SerializeDispatcher<T> {
 
-        void from(const Tag<bool> &v) const {
-            from(v.get_value(), proto::get_tag_info(v));
-        }
+        using proto::google_protobuf::detail::SerializeDispatcher<T>::SerializeDispatcher;
+        using proto::google_protobuf::detail::SerializeDispatcher<T>::from;
 
-        void from(bool v, const TagInfo &t) const {
-            if (t.key != "" && !(t.omitempty && detail::is_empty_value(v)))
-                from(v, proto::get_field_number(t));
-        }
-
-        void from(bool v, int field_number) const {
-            doc.WriteTag(
-                google::protobuf::internal::WireFormatLite::MakeTag(
-                    field_number, google::protobuf::internal::WireFormatLite::WIRETYPE_VARINT
-                )
+        void from(const T &v, int field_number) const override {
+            auto tag = google::protobuf::internal::WireFormatLite::MakeTag(
+                field_number, google::protobuf::internal::WireFormatLite::WIRETYPE_VARINT
             );
-            doc.WriteVarint32(v);
+            this->doc.WriteTag(tag);
+            if constexpr (sizeof(T) == sizeof(uint64_t))
+                this->doc.WriteVarint64(static_cast<uint64_t>(v));
+            else
+                this->doc.WriteVarint32(static_cast<uint32_t>(v));
         }
     };
+
+    // floating point
+    template <typename T>
+    struct Serialize<google::protobuf::io::CodedOutputStream, Tag<T>, std::enable_if_t<std::is_floating_point_v<T>>>
+        : public proto::google_protobuf::detail::SerializeDispatcher<T> {
+        using proto::google_protobuf::detail::SerializeDispatcher<T>::SerializeDispatcher;
+        using proto::google_protobuf::detail::SerializeDispatcher<T>::from;
+
+        void from(const T &v, int field_number) const override {
+            auto tag = google::protobuf::internal::WireFormatLite::MakeTag(
+                field_number,
+                sizeof(T) == 4 ? google::protobuf::internal::WireFormatLite::WIRETYPE_FIXED32
+                               : google::protobuf::internal::WireFormatLite::WIRETYPE_FIXED64
+            );
+            this->doc.WriteTag(tag);
+            if (sizeof(T) == 4) {
+                uint32_t bits;
+                std::memcpy(&bits, &v, sizeof(bits));
+                this->doc.WriteLittleEndian32(bits);
+            } else {
+                uint64_t bits;
+                std::memcpy(&bits, &v, sizeof(bits));
+                this->doc.WriteLittleEndian64(bits);
+            }
+        }
+    };
+
+    // bytes and string
+    template <typename T>
+    struct Serialize<
+        google::protobuf::io::CodedOutputStream,
+        Tag<T>,
+        std::enable_if_t<proto::google_protobuf::detail::is_bytes<T>::value>>
+        : public proto::google_protobuf::detail::SerializeDispatcher<T> {
+        using proto::google_protobuf::detail::SerializeDispatcher<T>::SerializeDispatcher;
+        using proto::google_protobuf::detail::SerializeDispatcher<T>::from;
+
+        void from(const T &v, int field_number) const override {
+            auto tag = google::protobuf::internal::WireFormatLite::MakeTag(
+                field_number, google::protobuf::internal::WireFormatLite::WIRETYPE_LENGTH_DELIMITED
+            );
+            this->doc.WriteTag(tag);
+            this->doc.WriteVarint32(static_cast<uint32_t>(v.size()));
+            this->doc.WriteRaw(v.data(), static_cast<int>(v.size()));
+        }
+    };
+
+    // optional
+    template <typename T>
+    struct Serialize<google::protobuf::io::CodedOutputStream, Tag<std::optional<T>>>
+        : public proto::google_protobuf::detail::SerializeDispatcher<std::optional<T>> {
+        using proto::google_protobuf::detail::SerializeDispatcher<std::optional<T>>::SerializeDispatcher;
+        using proto::google_protobuf::detail::SerializeDispatcher<std::optional<T>>::from;
+
+        void from(const std::optional<T> &v, int field_number) {
+            if (v.has_value())
+                Serialize<google::protobuf::io::CodedOutputStream, Tag<T>>(this->doc).from(*v, field_number);
+        }
+    };
+
+    // repeated
+    template <typename T, size_t N>
+    struct Serialize<
+        google::protobuf::io::CodedOutputStream,
+        Tag<std::array<T, N>>,
+        std::enable_if_t<!std::is_same_v<T, uint8_t>>>
+        : public proto::google_protobuf::detail::SerializeDispatcher<std::array<T, N>> {
+        using proto::google_protobuf::detail::SerializeDispatcher<std::array<T, N>>::SerializeDispatcher;
+        using proto::google_protobuf::detail::SerializeDispatcher<std::array<T, N>>::from;
+
+        void from(const std::array<T, N> &arr, int field_number) const override {
+            for (const auto &v : arr)
+                Serialize<google::protobuf::io::CodedOutputStream, Tag<T>>(this->doc).from(v, field_number);
+        }
+    };
+
+    template <typename T>
+    struct Serialize<google::protobuf::io::CodedOutputStream, Tag<std::vector<T>>, std::enable_if_t<!std::is_same_v<T, uint8_t>>>
+        : public proto::google_protobuf::detail::SerializeDispatcher<std::vector<T>> {
+        using proto::google_protobuf::detail::SerializeDispatcher<std::vector<T>>::SerializeDispatcher;
+        using proto::google_protobuf::detail::SerializeDispatcher<std::vector<T>>::from;
+
+        void from(const std::vector<T> &arr, int field_number) const override {
+            for (const auto &v : arr)
+                Serialize<google::protobuf::io::CodedOutputStream, Tag<T>>(this->doc).from(v, field_number);
+        }
+    };
+
+    // message
+    template <typename... Ts>
+    struct Serialize<google::protobuf::io::CodedOutputStream, Tag<std::tuple<Ts...>>>
+        : public proto::google_protobuf::detail::SerializeDispatcher<std::tuple<Ts...>> {
+        using proto::google_protobuf::detail::SerializeDispatcher<std::tuple<Ts...>>::SerializeDispatcher;
+        using proto::google_protobuf::detail::SerializeDispatcher<std::tuple<Ts...>>::from;
+
+        void from(const std::tuple<Ts...> &tpl, int field_number) const {
+            std::string buffer = Dump<google::protobuf::io::CodedOutputStream, std::string>{}.from(tpl);
+            Serialize<google::protobuf::io::CodedOutputStream, Tag<std::string>>(this->doc).from(buffer, field_number);
+        }
+    };
+
+#ifdef BOOST_PFR_HPP
+    template <typename S>
+    struct Serialize<google::protobuf::io::CodedOutputStream, Tag<S>, std::enable_if_t<std::is_aggregate_v<S>>>
+        : public proto::google_protobuf::detail::SerializeDispatcher<S> {
+        using proto::google_protobuf::detail::SerializeDispatcher<S>::SerializeDispatcher;
+        using proto::google_protobuf::detail::SerializeDispatcher<S>::from;
+
+        void from(const S &v, int field_number) const {
+            std::string buffer = Dump<google::protobuf::io::CodedOutputStream, std::string>{}.from(v);
+            Serialize<google::protobuf::io::CodedOutputStream, Tag<std::string>>(this->doc).from(buffer, field_number);
+        }
+    };
+#endif
 
     template <>
     struct Deserialize<google::protobuf::io::CodedInputStream, Tag<bool>> {
@@ -219,30 +390,6 @@ namespace cppxx::serde {
             auto [val, ok] = Parse<google::protobuf::io::CodedInputStream, std::string>::read_fixed64(raw, t);
             if (ok)
                 v = val;
-        }
-    };
-
-    // uint32_t
-    template <>
-    struct Serialize<google::protobuf::io::CodedOutputStream, Tag<uint32_t>> {
-        google::protobuf::io::CodedOutputStream &doc;
-
-        void from(const Tag<uint32_t> &v) const {
-            from(v.get_value(), proto::get_tag_info(v));
-        }
-
-        void from(uint32_t v, const TagInfo &t) const {
-            if (t.key != "" && !(t.omitempty && detail::is_empty_value(v)))
-                from(v, proto::get_field_number(t));
-        }
-
-        void from(uint32_t v, int field_number) const {
-            doc.WriteTag(
-                google::protobuf::internal::WireFormatLite::MakeTag(
-                    field_number, google::protobuf::internal::WireFormatLite::WIRETYPE_VARINT
-                )
-            );
-            doc.WriteVarint32(v);
         }
     };
 
@@ -267,24 +414,6 @@ namespace cppxx::serde {
         }
     };
 
-    // int32_t
-    template <>
-    struct Serialize<google::protobuf::io::CodedOutputStream, Tag<int32_t>> {
-        google::protobuf::io::CodedOutputStream &doc;
-
-        void from(const Tag<int32_t> &v) const {
-            from(v.get_value(), proto::get_tag_info(v));
-        }
-
-        void from(int32_t v, const TagInfo &t) const {
-            Serialize<google::protobuf::io::CodedOutputStream, Tag<uint32_t>>{doc}.from(static_cast<uint32_t>(v), t);
-        }
-
-        void from(int32_t v, int field_number) const {
-            Serialize<google::protobuf::io::CodedOutputStream, Tag<uint32_t>>{doc}.from(static_cast<uint32_t>(v), field_number);
-        }
-    };
-
     template <>
     struct Deserialize<google::protobuf::io::CodedInputStream, Tag<int32_t>> {
         std::string raw;
@@ -306,30 +435,6 @@ namespace cppxx::serde {
         }
     };
 
-    // uint64_t
-    template <>
-    struct Serialize<google::protobuf::io::CodedOutputStream, Tag<uint64_t>> {
-        google::protobuf::io::CodedOutputStream &doc;
-
-        void from(const Tag<uint64_t> &v) const {
-            from(v.get_value(), proto::get_tag_info(v));
-        }
-
-        void from(uint64_t v, const TagInfo &t) const {
-            if (t.key != "" && !(t.omitempty && detail::is_empty_value(v)))
-                from(v, proto::get_field_number(t));
-        }
-
-        void from(uint64_t v, int field_number) const {
-            doc.WriteTag(
-                google::protobuf::internal::WireFormatLite::MakeTag(
-                    field_number, google::protobuf::internal::WireFormatLite::WIRETYPE_VARINT
-                )
-            );
-            doc.WriteVarint64(v);
-        }
-    };
-
     template <>
     struct Deserialize<google::protobuf::io::CodedInputStream, Tag<uint64_t>> {
         std::string raw;
@@ -342,24 +447,6 @@ namespace cppxx::serde {
             auto [val, ok] = Parse<google::protobuf::io::CodedInputStream, std::string>::read_fixed64(raw, t);
             if (ok)
                 v = val;
-        }
-    };
-
-    // int64_t
-    template <>
-    struct Serialize<google::protobuf::io::CodedOutputStream, Tag<int64_t>> {
-        google::protobuf::io::CodedOutputStream &doc;
-
-        void from(const Tag<int64_t> &v) const {
-            from(v.get_value(), proto::get_tag_info(v));
-        }
-
-        void from(int64_t v, const TagInfo &t) const {
-            Serialize<google::protobuf::io::CodedOutputStream, Tag<uint64_t>>{doc}.from(static_cast<uint64_t>(v), t);
-        }
-
-        void from(int64_t v, int field_number) const {
-            Serialize<google::protobuf::io::CodedOutputStream, Tag<uint64_t>>{doc}.from(static_cast<uint64_t>(v), field_number);
         }
     };
 
@@ -378,24 +465,6 @@ namespace cppxx::serde {
         }
     };
 
-    // enum
-    template <typename T>
-    struct Serialize<google::protobuf::io::CodedOutputStream, Tag<T>, std::enable_if_t<std::is_enum_v<T>>> {
-        google::protobuf::io::CodedOutputStream &doc;
-
-        void from(const Tag<T> &v) const {
-            from(v.get_value(), proto::get_tag_info(v));
-        }
-
-        void from(T v, const TagInfo &t) const {
-            Serialize<google::protobuf::io::CodedOutputStream, Tag<int32_t>>{doc}.from(static_cast<int32_t>(v), t);
-        }
-
-        void from(T v, int field_number) const {
-            Serialize<google::protobuf::io::CodedOutputStream, Tag<int32_t>>{doc}.from(static_cast<int32_t>(v), field_number);
-        }
-    };
-
     template <typename T>
     struct Deserialize<google::protobuf::io::CodedInputStream, Tag<T>, std::enable_if_t<std::is_enum_v<T>>> {
         const std::string &raw;
@@ -411,215 +480,6 @@ namespace cppxx::serde {
         }
     };
 
-    // float
-    template <>
-    struct Serialize<google::protobuf::io::CodedOutputStream, Tag<float>> {
-        google::protobuf::io::CodedOutputStream &doc;
-
-        void from(const Tag<float> &v) const {
-            from(v.get_value(), proto::get_tag_info(v));
-        }
-
-        void from(float v, const TagInfo &t) const {
-            if (t.key != "" && !(t.omitempty && detail::is_empty_value(v)))
-                from(v, proto::get_field_number(t));
-        }
-
-        void from(float v, int field_number) const {
-            doc.WriteTag(
-                google::protobuf::internal::WireFormatLite::MakeTag(
-                    field_number, google::protobuf::internal::WireFormatLite::WIRETYPE_FIXED32
-                )
-            );
-            uint32_t bits;
-            static_assert(sizeof(bits) == sizeof(v));
-            std::memcpy(&bits, &v, sizeof(bits));
-            doc.WriteLittleEndian32(bits);
-        }
-    };
-
-    // double
-    template <>
-    struct Serialize<google::protobuf::io::CodedOutputStream, Tag<double>> {
-        google::protobuf::io::CodedOutputStream &doc;
-
-        void from(const Tag<double> &v) const {
-            from(v.get_value(), proto::get_tag_info(v));
-        }
-
-        void from(double v, const TagInfo &t) const {
-            if (t.key != "" && !(t.omitempty && detail::is_empty_value(v)))
-                from(v, proto::get_field_number(t));
-        }
-
-        void from(double v, int field_number) const {
-            doc.WriteTag(
-                google::protobuf::internal::WireFormatLite::MakeTag(
-                    field_number, google::protobuf::internal::WireFormatLite::WIRETYPE_FIXED32
-                )
-            );
-            uint64_t bits;
-            static_assert(sizeof(bits) == sizeof(v));
-            std::memcpy(&bits, &v, sizeof(bits));
-            doc.WriteLittleEndian64(bits);
-        }
-    };
-
-    // string
-    template <>
-    struct Serialize<google::protobuf::io::CodedOutputStream, Tag<std::string>> {
-        google::protobuf::io::CodedOutputStream &doc;
-
-        void from(const Tag<std::string> &v) const {
-            from(v.get_value(), proto::get_tag_info(v));
-        }
-
-        void from(const std::string &v, const TagInfo &t) const {
-            if (t.key != "" && !(t.omitempty && detail::is_empty_value(v)))
-                from(v, proto::get_field_number(t));
-        }
-
-        void from(const std::string &v, int field_number) const {
-            doc.WriteTag(
-                google::protobuf::internal::WireFormatLite::MakeTag(
-                    field_number, google::protobuf::internal::WireFormatLite::WIRETYPE_LENGTH_DELIMITED
-                )
-            );
-            doc.WriteVarint32(static_cast<uint32_t>(v.size()));
-            doc.WriteString(v);
-        }
-    };
-
-    // bytes
-    template <>
-    struct Serialize<google::protobuf::io::CodedOutputStream, Tag<std::vector<uint8_t>>> {
-        google::protobuf::io::CodedOutputStream &doc;
-
-        void from(const Tag<std::vector<uint8_t>> &v) const {
-            from(v.get_value(), proto::get_tag_info(v));
-        }
-
-        void from(const std::vector<uint8_t> &v, const TagInfo &t) const {
-            if (t.key != "" && !(t.omitempty && detail::is_empty_value(v)))
-                from(v, proto::get_field_number(t));
-        }
-
-        void from(const std::vector<uint8_t> &v, int field_number) const {
-            doc.WriteTag(
-                google::protobuf::internal::WireFormatLite::MakeTag(
-                    field_number, google::protobuf::internal::WireFormatLite::WIRETYPE_LENGTH_DELIMITED
-                )
-            );
-            doc.WriteVarint32(static_cast<uint32_t>(v.size()));
-            doc.WriteRaw(v.data(), static_cast<int>(v.size()));
-        }
-    };
-
-    // optional
-    template <typename T>
-    struct Serialize<google::protobuf::io::CodedOutputStream, Tag<std::optional<T>>> {
-        google::protobuf::io::CodedOutputStream &doc;
-
-        void from(const Tag<std::optional<T>> &v) const {
-            from(v.get_value(), proto::get_tag_info(v));
-        }
-
-        void from(const std::optional<T> &v, const TagInfo &t) {
-            if (t.key != "" && !(t.omitempty && detail::is_empty_value(v)))
-                from(v, proto::get_field_number(t));
-        }
-
-        void from(const std::optional<T> &v, int field_number) {
-            if (v.has_value())
-                Serialize<google::protobuf::io::CodedOutputStream, Tag<T>>{doc}.from(*v, field_number);
-        }
-    };
-
-    // repeated
-    template <typename T, size_t N>
-    struct Serialize<
-        google::protobuf::io::CodedOutputStream,
-        Tag<std::array<T, N>>,
-        std::enable_if_t<!std::is_same_v<T, uint8_t>>> {
-        google::protobuf::io::CodedOutputStream &doc;
-
-        void from(const Tag<std::array<T, N>> &v) const {
-            from(v.get_value(), proto::get_tag_info(v));
-        }
-
-        void from(const std::array<T, N> &v, const TagInfo &t) const {
-            if (t.key != "" && !(t.omitempty && detail::is_empty_value(v)))
-                from(v, proto::get_field_number(t));
-        }
-
-        void from(const std::array<T, N> &arr, int field_number) const {
-            for (const auto &v : arr)
-                Serialize<google::protobuf::io::CodedOutputStream, Tag<T>>{doc}.from(v, field_number);
-        }
-    };
-
-    template <typename T>
-    struct Serialize<
-        google::protobuf::io::CodedOutputStream,
-        Tag<std::vector<T>>,
-        std::enable_if_t<!std::is_same_v<T, uint8_t>>> {
-        google::protobuf::io::CodedOutputStream &doc;
-
-        void from(const Tag<std::vector<T>> &v) const {
-            from(v.get_value(), proto::get_tag_info(v));
-        }
-
-        void from(const std::vector<T> &v, const TagInfo &t) const {
-            if (t.key != "" && !(t.omitempty && detail::is_empty_value(v)))
-                from(v, proto::get_field_number(t));
-        }
-
-        void from(const std::vector<T> &arr, int field_number) const {
-            for (const auto &v : arr)
-                Serialize<google::protobuf::io::CodedOutputStream, Tag<T>>{doc}.from(v, field_number);
-        }
-    };
-
-    // message
-    template <typename... Ts>
-    struct Serialize<google::protobuf::io::CodedOutputStream, Tag<std::tuple<Ts...>>> {
-        google::protobuf::io::CodedOutputStream &doc;
-
-        void from(const Tag<std::tuple<Ts...>> &v) const {
-            from(v.get_value(), proto::get_tag_info(v));
-        }
-
-        void from(const std::tuple<Ts...> &v, const TagInfo &t) const {
-            if (t.key != "" && !(t.omitempty && detail::is_empty_value(v)))
-                from(v, proto::get_field_number(t));
-        }
-
-        void from(const std::tuple<Ts...> &tpl, int field_number) const {
-            std::string buffer = Dump<google::protobuf::io::CodedOutputStream, std::string>{}.from(tpl);
-            Serialize<google::protobuf::io::CodedOutputStream, Tag<std::string>>{doc}.from(buffer, field_number);
-        }
-    };
-
-#ifdef BOOST_PFR_HPP
-    template <typename S>
-    struct Serialize<google::protobuf::io::CodedOutputStream, Tag<S>, std::enable_if_t<std::is_aggregate_v<S>>> {
-        google::protobuf::io::CodedOutputStream &doc;
-
-        void from(const Tag<S> &v) const {
-            from(v.get_value(), proto::get_tag_info(v));
-        }
-
-        void from(const S &v, const TagInfo &t) const {
-            if (t.key != "" && !(t.omitempty && detail::is_empty_value(v)))
-                from(v, proto::get_field_number(t));
-        }
-
-        void from(const S &v, int field_number) const {
-            std::string buffer = Dump<google::protobuf::io::CodedOutputStream, std::string>{}.from(v);
-            Serialize<google::protobuf::io::CodedOutputStream, Tag<std::string>>{doc}.from(buffer, field_number);
-        }
-    };
-#endif
 } // namespace cppxx::serde
 
 namespace cppxx::proto::google_protobuf {
