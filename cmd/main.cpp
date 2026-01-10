@@ -1,12 +1,12 @@
-#include <cpp++/proto/google_protobuf.h>
+#include <cpp++/proto/protobuf.h>
 #include <iostream>
 
 int main() {
-    auto inner = std::make_tuple(cppxx::Tag<int>{"proto:`40`", 123}, cppxx::Tag<std::string>{"proto:`2`", "hello world"});
+    auto inner = std::make_tuple(cppxx::Tag<int>{"protobuf:`40`", 123}, cppxx::Tag<std::string>{"protobuf:`2`", "hello world"});
 
-    auto data = std::make_tuple(cppxx::Tag<float>{"proto:`1`", 0.314f}, cppxx::Tag<decltype(inner)>{"proto:`2`", inner});
+    auto data = std::make_tuple(cppxx::Tag<float>{"protobuf:`1`", 0.314f}, cppxx::Tag<decltype(inner)>{"protobuf:`2`", inner});
 
-    std::string serialized_data = cppxx::proto::google_protobuf::dump(data);
+    std::string serialized_data = cppxx::proto::protobuf::dump(data);
 
     std::cout << "Serialized data (hex): ";
     for (char c : serialized_data) {
