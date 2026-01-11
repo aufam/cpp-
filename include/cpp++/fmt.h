@@ -2,7 +2,6 @@
 #define CPPXX_FMT_H
 
 #include <cpp++/serde/tag_info.h>
-#include <cpp++/serde/serialize.h>
 #include <optional>
 
 #ifndef FMT_RANGES_H_
@@ -11,6 +10,18 @@
 
 #ifndef FMT_CHRONO_H_
 #    include <fmt/chrono.h>
+#endif
+
+#ifndef BOOST_PFR_HPP
+#    if __has_include(<boost/pfr.hpp>)
+#        include <boost/pfr.hpp>
+#    endif
+#endif
+
+#ifndef NEARGYE_MAGIC_ENUM_HPP
+#    if __has_include(<magic_enum/magic_enum.hpp>)
+#        include <magic_enum/magic_enum.hpp>
+#    endif
 #endif
 
 template <typename T>
@@ -26,16 +37,8 @@ struct fmt::formatter<cppxx::Tag<T>, char, std::enable_if_t<fmt::is_formattable<
     }
 };
 
-template <typename S>
-struct fmt::formatter<S, char, std::enable_if_t<std::is_aggregate_v<S> && !std::is_same_v<S, std::tm>>> : fmt::formatter<int> {
-    fmt::context::iterator format(const S &v, fmt::context &c) const {
-        fmt::context::iterator out = c.out();
-        return fmt::format_to(out, "{}", boost::pfr::structure_tie(v));
-    }
-};
-
 template <typename T>
-struct fmt::formatter<std::optional<T>> : fmt::formatter<T> {
+struct fmt::formatter<std::optional<T>, char, std::enable_if_t<fmt::is_formattable<T, char>::value>> : fmt::formatter<T> {
     fmt::context::iterator format(const std::optional<T> &v, fmt::context &c) const {
         if (v.has_value()) {
             return fmt::formatter<T>::format(*v, c);
@@ -44,5 +47,24 @@ struct fmt::formatter<std::optional<T>> : fmt::formatter<T> {
         return fmt::format_to(out, "null");
     }
 };
+
+#ifdef BOOST_PFR_HPP
+template <typename S>
+struct fmt::formatter<S, char, std::enable_if_t<std::is_aggregate_v<S> && !std::is_same_v<S, std::tm>>> : fmt::formatter<int> {
+    fmt::context::iterator format(const S &v, fmt::context &c) const {
+        fmt::context::iterator out = c.out();
+        return fmt::format_to(out, "{}", boost::pfr::structure_tie(v));
+    }
+};
+#endif
+
+#ifdef NEARGYE_MAGIC_ENUM_HPP
+template <typename S>
+struct fmt::formatter<S, char, std::enable_if_t<std::is_enum_v<S>>> : fmt::formatter<std::string_view> {
+    fmt::context::iterator format(S v, fmt::context &c) const {
+        return fmt::formatter<std::string_view>::format(magic_enum::enum_name(v), c);
+    }
+};
+#endif
 
 #endif

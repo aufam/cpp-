@@ -9,6 +9,7 @@
 #include <tuple>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 #ifndef GOOGLE_PROTOBUF_IO_CODED_STREAM_H__
 #    include <google/protobuf/io/coded_stream.h>
@@ -108,11 +109,11 @@ namespace cppxx::proto::protobuf::detail {
     template <size_t N>
     struct is_bytes<std::array<uint8_t, N>> : std::true_type {};
 
-    template <>
-    struct is_bytes<std::vector<uint8_t>> : std::true_type {};
+    template <typename A>
+    struct is_bytes<std::vector<uint8_t, A>> : std::true_type {};
 
-    template <>
-    struct is_bytes<std::string> : std::true_type {};
+    template <typename CT, typename A>
+    struct is_bytes<std::basic_string<char, CT, A>> : std::true_type {};
 
 
     template <typename T>
@@ -121,8 +122,8 @@ namespace cppxx::proto::protobuf::detail {
     template <typename T, size_t N>
     struct is_repeated_numeric<std::array<T, N>> : std::bool_constant<is_numeric<T>::value && !std::is_same_v<T, uint8_t>> {};
 
-    template <typename T>
-    struct is_repeated_numeric<std::vector<T>> : std::bool_constant<is_numeric<T>::value && !std::is_same_v<T, uint8_t>> {};
+    template <typename T, typename A>
+    struct is_repeated_numeric<std::vector<T, A>> : std::bool_constant<is_numeric<T>::value && !std::is_same_v<T, uint8_t>> {};
 
 
     template <typename T>
@@ -131,8 +132,8 @@ namespace cppxx::proto::protobuf::detail {
     template <typename T, size_t N>
     struct is_repeated<std::array<T, N>> : std::bool_constant<!is_numeric<T>::value && !std::is_same_v<T, uint8_t>> {};
 
-    template <typename T>
-    struct is_repeated<std::vector<T>> : std::bool_constant<!is_numeric<T>::value && !std::is_same_v<T, uint8_t>> {};
+    template <typename T, typename A>
+    struct is_repeated<std::vector<T, A>> : std::bool_constant<!is_numeric<T>::value && !std::is_same_v<T, uint8_t>> {};
 
 
     template <typename T>
@@ -144,10 +145,10 @@ namespace cppxx::proto::protobuf::detail {
               !is_repeated_numeric<std::array<T, N>>::value && !is_bytes<std::array<T, N>>::value &&
               serde::is_serializable_v<google::protobuf::io::CodedOutputStream, T>> {};
 
-    template <typename T>
-    struct is_repeated_serializable<std::vector<T>>
+    template <typename T, typename A>
+    struct is_repeated_serializable<std::vector<T, A>>
         : std::bool_constant<
-              !is_repeated_numeric<std::vector<T>>::value && !is_bytes<std::vector<T>>::value &&
+              !is_repeated_numeric<std::vector<T, A>>::value && !is_bytes<std::vector<T, A>>::value &&
               serde::is_serializable_v<google::protobuf::io::CodedOutputStream, T>> {};
 
 
@@ -160,10 +161,10 @@ namespace cppxx::proto::protobuf::detail {
               !is_repeated_numeric<std::array<T, N>>::value && !is_bytes<std::array<T, N>>::value &&
               serde::is_deserializable_v<google::protobuf::io::CodedInputStream, T>> {};
 
-    template <typename T>
-    struct is_repeated_deserializable<std::vector<T>>
+    template <typename T, typename A>
+    struct is_repeated_deserializable<std::vector<T, A>>
         : std::bool_constant<
-              !is_repeated_numeric<std::vector<T>>::value && !is_bytes<std::vector<T>>::value &&
+              !is_repeated_numeric<std::vector<T, A>>::value && !is_bytes<std::vector<T, A>>::value &&
               serde::is_deserializable_v<google::protobuf::io::CodedInputStream, T>> {};
 
 
@@ -344,6 +345,42 @@ namespace cppxx::serde {
                 throw serde::error("message not fully consumed");
         }
 
+        template <typename K, typename T, typename H, typename P, typename A>
+        void into(std::unordered_map<K, T, H, P, A> &map) const {
+            google::protobuf::io::ArrayInputStream ais(buffer.data(), (int)buffer.size());
+            google::protobuf::io::CodedInputStream doc(&ais);
+
+            serde::Deserialize<google::protobuf::io::CodedInputStream, K> sk(doc);
+            serde::Deserialize<google::protobuf::io::CodedInputStream, T> sv(doc);
+
+            while (const uint32_t tag = doc.ReadTag()) {
+                const uint32_t field_number = tag >> 3;
+                const auto     wire_type    = static_cast<google::protobuf::internal::WireFormatLite::WireType>(tag & 0x07);
+
+                K k;
+                T v;
+                try {
+                    if (field_number == 1) {
+                        sk.set_wire_type(wire_type).set_fixed(false).set_zigzag(false).set_packed(true).read_len();
+                        sk.into(k);
+                    } else if (field_number == 2) {
+                        sv.set_wire_type(wire_type).set_fixed(false).set_zigzag(false).set_packed(true).read_len();
+                        sv.into(v);
+                    } else {
+                        if (!google::protobuf::internal::WireFormatLite::SkipField(&doc, tag))
+                            throw serde::error("cannot skip field");
+                        continue;
+                    }
+                } catch (serde::error &e) {
+                    e.add_context(std::to_string(field_number));
+                    throw;
+                }
+                map.emplace(std::move(k), std::move(v));
+            }
+            if (!doc.ConsumedEntireMessage())
+                throw serde::error("message not fully consumed");
+        }
+
 #ifdef BOOST_PFR_HPP
         template <typename S>
         std::enable_if_t<std::is_aggregate_v<S>> into(S &v) const {
@@ -382,7 +419,7 @@ namespace cppxx::serde {
             if constexpr (std::is_same_v<T, double>) {
                 this->doc.WriteLittleEndian64(google::protobuf::internal::WireFormatLite::EncodeDouble(v));
             } else if constexpr (std::is_same_v<T, float>) {
-                this->doc.WriteLittleEndian64(google::protobuf::internal::WireFormatLite::EncodeFloat(v));
+                this->doc.WriteLittleEndian32(google::protobuf::internal::WireFormatLite::EncodeFloat(v));
             } else {
                 if (fixed) {
                     if constexpr (sizeof(T) == 8)
@@ -753,6 +790,56 @@ namespace cppxx::serde {
         }
     };
 #endif
+
+    template <typename K, typename T, typename H, typename P, typename A>
+    struct Serialize<
+        google::protobuf::io::CodedOutputStream,
+        std::unordered_map<K, T, H, P, A>,
+        std::enable_if_t<
+            is_serializable_v<google::protobuf::io::CodedOutputStream, K> &&
+            is_serializable_v<google::protobuf::io::CodedOutputStream, T>>> {
+        google::protobuf::io::CodedOutputStream &doc;
+
+        void from(const std::unordered_map<K, T, H, P, A> &v, const proto::protobuf::TagInfo &ti) {
+            std::string buffer;
+            {
+                google::protobuf::io::StringOutputStream os(&buffer);
+                google::protobuf::io::CodedOutputStream  doc(&os);
+                Serialize<google::protobuf::io::CodedOutputStream, std::unordered_map<K, T, H, P, A>>{doc}.from(v);
+            }
+            Serialize<google::protobuf::io::CodedOutputStream, std::string>{this->doc}.from(buffer, ti);
+        }
+
+        void from(const std::unordered_map<K, T, H, P, A> &map) {
+            proto::protobuf::TagInfo tk = {1}, tv = {2};
+            for (auto &[k, v] : map) {
+                Serialize<google::protobuf::io::CodedOutputStream, K>{this->doc}.from(k, tk);
+                Serialize<google::protobuf::io::CodedOutputStream, T>{this->doc}.from(v, tv);
+            }
+        }
+    };
+
+    template <typename K, typename T, typename H, typename P, typename A>
+    struct Deserialize<
+        google::protobuf::io::CodedOutputStream,
+        std::unordered_map<K, T, H, P, A>,
+        std::enable_if_t<
+            is_deserializable_v<google::protobuf::io::CodedInputStream, K> &&
+            is_deserializable_v<google::protobuf::io::CodedInputStream, T>>>
+        : public proto::protobuf::detail::DeserializeDispatcherFor<std::unordered_map<K, T, H, P, A>> {
+
+        using proto::protobuf::detail::DeserializeDispatcherFor<std::unordered_map<K, T, H, P, A>>::DeserializeDispatcherFor;
+        ~Deserialize() override = default;
+
+        void read() override {
+            Deserialize<google::protobuf::io::CodedInputStream, std::string> ser(this->doc);
+            ser.set_wire_type(this->wire_type).set_len(this->len);
+            std::string buffer;
+            ser.into(buffer);
+
+            Parse<google::protobuf::io::CodedInputStream, std::string>{buffer}.into(*this->val);
+        }
+    };
 } // namespace cppxx::serde
 
 namespace cppxx::proto::protobuf {

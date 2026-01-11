@@ -1,10 +1,20 @@
 #include <cpp++/proto/protobuf.h>
+#include <cpp++/fmt.h>
 #include <iostream>
 
 int main() {
-    auto inner = std::make_tuple(cppxx::Tag<int>{"protobuf:`40`", 123}, cppxx::Tag<std::string>{"protobuf:`2`", "hello world"});
+    auto inner = std::make_tuple(
+        cppxx::Tag<int>{"               protobuf:`40` fmt:`num`  ", 123},
+        cppxx::Tag<std::string>{"       protobuf:`2`  fmt:`hello`", "hello world"},
+        cppxx::Tag<std::optional<int>>{"              fmt:`opt`  ", std::nullopt}
+    );
 
-    auto data = std::make_tuple(cppxx::Tag<float>{"protobuf:`1`", 0.314f}, cppxx::Tag<decltype(inner)>{"protobuf:`2`", inner});
+    auto data = std::make_tuple(
+        cppxx::Tag<float>{"          protobuf:`1` fmt:`pi`   ", 0.314f},
+        cppxx::Tag<decltype(inner)>{"protobuf:`2` fmt:`inner`", inner}
+    );
+
+    fmt::println("fmt = {}", data);
 
     std::string serialized_data = cppxx::proto::protobuf::dump(data);
 

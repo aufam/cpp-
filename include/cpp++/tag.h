@@ -60,7 +60,13 @@ namespace cppxx {
         std::string_view get_tag(std::string_view key) const {
             const std::string_view tag = this->tag;
 
-            for (size_t pos = 0; pos < tag.size();) {
+            for (size_t pos = 0;;) {
+                // skip whitespace if any
+                while (pos < tag.size() && tag[pos] == ' ')
+                    pos++;
+                if (pos >= tag.size())
+                    break;
+
                 // find next ":`"
                 const size_t sep = tag.find(":`", pos);
                 if (sep == std::string_view::npos)
@@ -90,9 +96,6 @@ namespace cppxx {
 
                 // advance past this key–value pair
                 pos = end + 1;
-                // skip whitespace if any
-                while (pos < tag.size() && tag[pos] == ' ')
-                    pos++;
             }
 
             return {};
