@@ -1,8 +1,9 @@
 #include <cpp++/proto/protobuf.h>
 #include <cpp++/fmt.h>
+#include <cpp++/cli/jarro_cxxopts.h>
 #include <iostream>
 
-int main() {
+int main(int argc, char **argv) {
     auto inner = std::make_tuple(
         cppxx::Tag<int>{"               protobuf:`40` fmt:`num`  ", 123},
         cppxx::Tag<std::string>{"       protobuf:`2`  fmt:`hello`", "hello world"},
@@ -24,9 +25,20 @@ int main() {
     }
     std::cout << '\n';
 
-    // Expected output for {123, "hello_world"} would be:
-    // 08 7b 12 0b 68 65 6c 6c 6f 5f 77 6f 72 6c 64
-    // (08=tag for field 1 varint, 7b=123; 12=tag for field 2 length-delimited, 0b=length 11, then "hello_world" bytes)
+    auto args = std::make_tuple(
+        cppxx::Tag<int>{"                     opt,fmt:`num`"},
+        cppxx::Tag<std::string>{"             opt,fmt:`str`"},
+        cppxx::Tag<std::optional<std::string>>{"             opt,fmt:`opt`"},
+        cppxx::Tag<std::vector<std::string>>{"opt,fmt:`vec,positional`"}
+    );
+    try {
+        cppxx::cli::jarro_cxxopts::Parse{"test", argc, argv}.into(args);
+    } catch (cppxx::cli::jarro_cxxopts::parse_help &e) {
+        fmt::println("{}", e.what());
+        return 0;
+    }
+
+    fmt::println("args = {}", args);
 
     return 0;
 }
