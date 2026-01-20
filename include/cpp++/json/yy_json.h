@@ -35,9 +35,8 @@ namespace cppxx::json::yy_json {
     template <typename To>
     using Deserialize = ::cppxx::serde::Deserialize<yyjson_val, To>;
 
-    using Dump = ::cppxx::serde::Dump<yyjson_mut_doc, std::string>;
-
     using Parse = ::cppxx::serde::Parse<yyjson_doc, std::string>;
+    using Dump  = ::cppxx::serde::Dump<yyjson_mut_doc, std::string>;
 
     template <typename T>
     void parse(const std::string &str, T &val, yyjson_read_flag = YYJSON_READ_NOFLAG);
@@ -260,7 +259,7 @@ namespace cppxx::serde {
 
     // optional
     template <typename T>
-    struct Serialize<yyjson_mut_val, std::optional<T>> {
+    struct Serialize<yyjson_mut_val, std::optional<T>, std::enable_if_t<is_serializable_v<yyjson_mut_val, T>>> {
         yyjson_mut_doc *doc;
 
         yyjson_mut_val *from(const std::optional<T> &v) const {
@@ -271,7 +270,10 @@ namespace cppxx::serde {
     };
 
     template <typename T>
-    struct Deserialize<yyjson_val, std::optional<T>, std::enable_if_t<std::is_default_constructible_v<T>>> {
+    struct Deserialize<
+        yyjson_val,
+        std::optional<T>,
+        std::enable_if_t<std::is_default_constructible_v<T> && is_deserializable_v<yyjson_val, T>>> {
         yyjson_val *val;
 
         void into(std::optional<T> &v) const {
@@ -284,7 +286,7 @@ namespace cppxx::serde {
 
     // array
     template <typename T, size_t N>
-    struct Serialize<yyjson_mut_val, std::array<T, N>> {
+    struct Serialize<yyjson_mut_val, std::array<T, N>, std::enable_if_t<is_serializable_v<yyjson_mut_val, T>>> {
         yyjson_mut_doc *doc;
 
         yyjson_mut_val *from(const std::array<T, N> &v) const {
@@ -301,7 +303,7 @@ namespace cppxx::serde {
     };
 
     template <typename T, size_t N>
-    struct Deserialize<yyjson_val, std::array<T, N>> {
+    struct Deserialize<yyjson_val, std::array<T, N>, std::enable_if_t<is_deserializable_v<yyjson_val, T>>> {
         yyjson_val *val;
 
         void into(std::array<T, N> &v) const {
@@ -326,7 +328,7 @@ namespace cppxx::serde {
 
     // vector
     template <typename T, typename A>
-    struct Serialize<yyjson_mut_val, std::vector<T, A>> {
+    struct Serialize<yyjson_mut_val, std::vector<T, A>, std::enable_if_t<is_serializable_v<yyjson_mut_val, T>>> {
         yyjson_mut_doc *doc;
 
         yyjson_mut_val *from(const std::vector<T, A> &v) const {
@@ -343,7 +345,10 @@ namespace cppxx::serde {
     };
 
     template <typename T, typename A>
-    struct Deserialize<yyjson_val, std::vector<T, A>, std::enable_if_t<std::is_default_constructible_v<T>>> {
+    struct Deserialize<
+        yyjson_val,
+        std::vector<T, A>,
+        std::enable_if_t<std::is_default_constructible_v<T> && is_deserializable_v<yyjson_val, T>>> {
         yyjson_val *val;
 
         void into(std::vector<T, A> &v) const {
@@ -465,7 +470,7 @@ namespace cppxx::serde {
 
     // variant
     template <typename... T>
-    struct Serialize<yyjson_mut_val, std::variant<T...>> {
+    struct Serialize<yyjson_mut_val, std::variant<T...>, std::enable_if_t<(is_serializable_v<yyjson_mut_val, T> && ...)>> {
         yyjson_mut_doc *doc;
 
         yyjson_mut_val *from(const std::variant<T...> &v) const {
@@ -476,25 +481,21 @@ namespace cppxx::serde {
     };
 
     template <typename... T>
-    struct Deserialize<yyjson_val, std::variant<T...>, std::enable_if_t<(std::is_default_constructible_v<T> && ...)>> {
+    struct Deserialize<
+        yyjson_val,
+        std::variant<T...>,
+        std::enable_if_t<((std::is_default_constructible_v<T> && is_deserializable_v<yyjson_val, T>) && ...)>> {
         yyjson_val *val;
 
         void into(std::variant<T...> &v) const {
-            try_for_each(v, std::index_sequence_for<T...>{});
-        }
-
-    protected:
-        template <size_t... I>
-        void try_for_each(std::variant<T...> &v, std::index_sequence<I...>) const {
             bool        done = false;
             std::string type_names;
             (
                 [&]() {
-                    using Elem = std::tuple_element_t<I, std::tuple<T...>>;
                     try {
                         if (!done) {
-                            auto element = Elem{};
-                            Deserialize<yyjson_val, Elem>{val}.into(element);
+                            auto element = T{};
+                            Deserialize<yyjson_val, T>{val}.into(element);
                             v    = std::move(element);
                             done = true;
                         }
@@ -513,8 +514,12 @@ namespace cppxx::serde {
 
     // map
     template <typename C, typename CT, typename CA, typename T, typename H, typename P, typename A>
-    struct Serialize<yyjson_mut_val, std::unordered_map<std::basic_string<C, CT, CA>, T, H, P, A>> {
+    struct Serialize<
+        yyjson_mut_val,
+        std::unordered_map<std::basic_string<C, CT, CA>, T, H, P, A>,
+        std::enable_if_t<is_serializable_v<yyjson_mut_val, T>>> {
         yyjson_mut_doc *doc;
+
         yyjson_mut_val *from(const std::unordered_map<std::basic_string<C, CT, CA>, T, H, P, A> &v) const {
             yyjson_mut_val *obj = yyjson_mut_obj(doc);
             for (auto &[k, v] : v) {
@@ -534,13 +539,14 @@ namespace cppxx::serde {
     struct Deserialize<
         yyjson_val,
         std::unordered_map<std::basic_string<C, CT, CA>, T, H, P, A>,
-        std::enable_if_t<std::is_default_constructible_v<T>>> {
+        std::enable_if_t<std::is_default_constructible_v<T> && is_deserializable_v<yyjson_val, T>>> {
         yyjson_val *val;
 
         void into(std::unordered_map<std::basic_string<C, CT, CA>, T, H, P, A> &v) {
             auto obj = this->val;
             if (!yyjson_is_obj(obj))
                 throw type_mismatch_error("object", yyjson_get_type_desc(obj));
+
             size_t      idx, max;
             yyjson_val *key, *val;
             yyjson_obj_foreach(obj, idx, max, key, val) {

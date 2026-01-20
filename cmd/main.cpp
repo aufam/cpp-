@@ -1,44 +1,68 @@
 #include <cpp++/proto/protobuf.h>
+#include <cpp++/toml/marzer_toml.h>
+#include <cpp++/cli/cli11.h>
+#include <cpp++/defer.h>
 #include <cpp++/fmt.h>
-#include <cpp++/cli/jarro_cxxopts.h>
-#include <iostream>
+
+template <typename T>
+using Tag = cppxx::Tag<T>;
+
+enum class Level { High = 10, Medium, Low };
+struct Data {
+    Tag<float>       pi    = {"protobuf:`1`  fmt,toml,opt:`pi,skipmissing`    ", 0.314f};
+    Tag<int>         num   = " protobuf:`2`  fmt,toml,opt:`num`               ";
+    Tag<std::string> hello = {"protobuf:`3`  fmt,toml,opt:`hello`             ", "hello world"};
+    Tag<Level>       level = " protobuf:`4`  fmt,toml,opt:`level`             ";
+
+    Tag<std::variant<int, std::string>> var = "fmt,toml,opt:`var`";
+
+    struct Subdata {
+        Tag<std::vector<std::string>> names = "protobuf:`1` fmt,toml:`names` opt:`names,positional`";
+    };
+    Tag<Subdata> sub = "protobuf:`5` fmt,toml:`sub` opt:`sub,positional,help=This is subcommand`";
+
+    // always be omitted since no serialize/deserialize overload for this type
+    Tag<std::nullopt_t> null      = {"protobuf:`32`  fmt,toml,opt:`asdfsa`", std::nullopt};
+    Tag<std::monostate> monostate = "fmt:`monostate`";
+};
 
 int main(int argc, char **argv) {
-    auto inner = std::make_tuple(
-        cppxx::Tag<int>{"               protobuf:`40` fmt:`num`  ", 123},
-        cppxx::Tag<std::string>{"       protobuf:`2`  fmt:`hello`", "hello world"},
-        cppxx::Tag<std::optional<int>>{"              fmt:`opt`  ", std::nullopt}
-    );
+    Data data;
+    fmt::println("default = {}", data);
 
-    auto data = std::make_tuple(
-        cppxx::Tag<float>{"          protobuf:`1` fmt:`pi`   ", 0.314f},
-        cppxx::Tag<decltype(inner)>{"protobuf:`2` fmt:`inner`", inner}
-    );
-
-    fmt::println("fmt = {}", data);
-
-    std::string serialized_data = cppxx::proto::protobuf::dump(data);
-
-    std::cout << "Serialized data (hex): ";
-    for (char c : serialized_data) {
-        std::cout << std::hex << std::setw(2) << std::setfill('0') << (static_cast<int>(static_cast<unsigned char>(c))) << " ";
-    }
-    std::cout << '\n';
-
-    auto args = std::make_tuple(
-        cppxx::Tag<int>{"                     opt,fmt:`num`"},
-        cppxx::Tag<std::string>{"             opt,fmt:`str`"},
-        cppxx::Tag<std::optional<std::string>>{"             opt,fmt:`opt`"},
-        cppxx::Tag<std::vector<std::string>>{"opt,fmt:`vec,positional`"}
-    );
-    try {
-        cppxx::cli::jarro_cxxopts::Parse{"test", argc, argv}.into(args);
-    } catch (cppxx::cli::jarro_cxxopts::parse_help &e) {
-        fmt::println("{}", e.what());
-        return 0;
+    // protobuf
+    {
+        std::string serialized_data = cppxx::proto::protobuf::dump(data);
+        fmt::println("proto = {:02x}", fmt::join(serialized_data, " "));
     }
 
-    fmt::println("args = {}", args);
+    // toml
+    {
+        const char *config_path = "temp.toml";
+        const char *config      = R"toml(
+            num = 42
+            hello = "hello from toml"
+            level = "Medium"
+            var = 10
+
+            [sub]
+            names = ["Bowo", "Charles"]
+        )toml";
+
+        FILE *f = fopen(config_path, "wb");
+        fwrite(config, 1, strlen(config), f);
+        fclose(f);
+        cppxx::defer _ = [config_path]() { remove(config_path); };
+
+        cppxx::toml::marzer_toml::parse_from_file(config_path, data);
+        fmt::println("toml = {}", data);
+    }
+
+    // argparse
+    {
+        cppxx::cli::cli11::parse("app description", argc, argv, data);
+        fmt::println("args = {}", data);
+    }
 
     return 0;
 }

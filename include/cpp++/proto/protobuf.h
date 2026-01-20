@@ -1,3 +1,5 @@
+// TODO: omit zero values
+
 #ifndef CPPXX_PROTO_PROTOBUF_H
 #define CPPXX_PROTO_PROTOBUF_H
 
@@ -428,13 +430,11 @@ namespace cppxx::serde {
                         this->doc.WriteLittleEndian32(static_cast<uint32_t>(v));
                 } else if (zigzag) {
                     if constexpr (sizeof(T) == 8)
-                        this->doc.WriteVarint64(
-                            google::protobuf::internal::WireFormatLite::ZigZagEncode64(static_cast<int64_t>(v))
-                        );
+                        this->doc.WriteVarint64(google::protobuf::internal::WireFormatLite::ZigZagEncode64(static_cast<int64_t>(v)
+                        ));
                     else
-                        this->doc.WriteVarint32(
-                            google::protobuf::internal::WireFormatLite::ZigZagEncode32(static_cast<int32_t>(v))
-                        );
+                        this->doc.WriteVarint32(google::protobuf::internal::WireFormatLite::ZigZagEncode32(static_cast<int32_t>(v)
+                        ));
                 } else {
                     if constexpr (sizeof(T) == 8)
                         this->doc.WriteVarint64(static_cast<uint64_t>(v));
@@ -611,7 +611,10 @@ namespace cppxx::serde {
             doc.PushLimit((int)buffer.size());
 
             Deserialize<google::protobuf::io::CodedInputStream, typename T::value_type> des(doc);
-            bool fixed     = std::is_same_v<T, double> || std::is_same_v<T, float> || this->fixed;
+
+            bool fixed =
+                std::is_same_v<typename T::value_type, double> || std::is_same_v<typename T::value_type, float> || this->fixed;
+
             auto wire_type = !fixed                                ? google::protobuf::internal::WireFormatLite::WIRETYPE_VARINT
                              : sizeof(typename T::value_type) == 8 ? google::protobuf::internal::WireFormatLite::WIRETYPE_FIXED64
                                                                    : google::protobuf::internal::WireFormatLite::WIRETYPE_FIXED32;
@@ -705,7 +708,11 @@ namespace cppxx::serde {
 
         void read() override {
             Deserialize<google::protobuf::io::CodedInputStream, typename T::value_type> ser(this->doc);
-            ser.set_wire_type(this->wire_type).set_len(this->len);
+            ser.set_wire_type(this->wire_type)
+                .set_fixed(this->fixed)
+                .set_zigzag(this->zigzag)
+                .set_packed(this->packed)
+                .set_len(this->len);
 
             T &arr = *this->val;
             if constexpr (proto::protobuf::detail::is_std_array<T>::value) {

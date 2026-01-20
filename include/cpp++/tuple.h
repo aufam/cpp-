@@ -34,6 +34,20 @@ namespace cppxx {
             std::forward<Tuple>(tpl)
         );
     }
+
+    template <template <typename> class Pred, typename T>
+    constexpr auto tie_if_one(T &v) {
+        if constexpr (Pred<std::remove_reference_t<T>>::value) {
+            return std::tuple<T &>(v);
+        } else {
+            return std::tuple<>();
+        }
+    }
+
+    template <template <typename> class Pred, typename... Ts>
+    constexpr auto tie_if(Ts &...vs) {
+        return std::tuple_cat(tie_if_one<Pred>(vs)...);
+    }
 } // namespace cppxx
 
 #endif

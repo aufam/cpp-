@@ -27,9 +27,17 @@
 #    endif
 #endif
 
+namespace __tomlpp = ::toml;
+
 namespace cppxx::toml::marzer_toml {
+    template <typename From>
+    using Serialize = cppxx::serde::Serialize<__tomlpp::node, From>;
+
     template <typename To>
-    using Deserialize = ::cppxx::serde::Deserialize<::toml::node, To>;
+    using Deserialize = cppxx::serde::Deserialize<__tomlpp::node, To>;
+
+    using Parse = cppxx::serde::Parse<__tomlpp::table, std::string>;
+    using Dump  = cppxx::serde::Dump<__tomlpp::table, std::string>;
 
     template <typename T>
     void parse(const std::string &str, T &val);
@@ -44,158 +52,175 @@ namespace cppxx::toml::marzer_toml {
     template <typename T>
     [[nodiscard]]
     std::enable_if_t<std::is_default_constructible_v<T>, T> parse_from_file(const std::string &path);
+
+    template <typename T>
+    [[nodiscard]]
+    std::string dump(const T &val);
 } // namespace cppxx::toml::marzer_toml
 
 
 namespace cppxx::serde {
     template <>
-    struct Dump<::toml::table, std::string> {
+    struct Dump<__tomlpp::table, std::string> {
         template <typename T>
         std::string from(const T &v) const {
-            auto val = Serialize<::toml::node, T>{}.from(v);
+            auto val = Serialize<__tomlpp::node, T>{}.from(v);
 
-            if (::toml::table *tbl = val->as_table()) {
+            if (__tomlpp::table *tbl = val->as_table()) {
                 std::ostringstream oss;
                 oss << *tbl;
                 return oss.str();
             } else
-                throw type_mismatch_error("table", std::string(::toml::impl::node_type_friendly_names[(int)val->type()]));
+                throw type_mismatch_error("table", std::string(__tomlpp::impl::node_type_friendly_names[(int)val->type()]));
         }
     };
 
     template <>
-    struct Parse<::toml::table, std::string> {
+    struct Parse<__tomlpp::table, std::string> {
         const std::string &src;
 
         template <typename T>
         void into(T &val, bool src_is_path = false) const {
-            ::toml::table tbl;
+            __tomlpp::table tbl;
             try {
-                tbl = src_is_path ? ::toml::parse_file(src) : ::toml::parse(src);
+                tbl = src_is_path ? __tomlpp::parse_file(src) : __tomlpp::parse(src);
             } catch (std::exception &e) {
                 throw error(e.what());
             }
 
-            ::toml::node *node = &tbl;
-            Deserialize<::toml::node, T>{node}.into(val);
+            __tomlpp::node *node = &tbl;
+            Deserialize<__tomlpp::node, T>{node}.into(val);
         }
     };
 
     // bool
     template <>
-    struct Serialize<::toml::node, bool> {
-        std::unique_ptr<::toml::node> from(bool v) const {
-            return std::make_unique<::toml::value<bool>>(v);
+    struct Serialize<__tomlpp::node, bool> {
+        std::unique_ptr<__tomlpp::node> from(bool v) const {
+            return std::make_unique<__tomlpp::value<bool>>(v);
         }
     };
 
     template <>
-    struct Deserialize<::toml::node, bool> {
-        const ::toml::node *node;
+    struct Deserialize<__tomlpp::node, bool> {
+        const __tomlpp::node *node;
 
         void into(bool &v) const {
-            if (auto val = node->as_boolean())
+            if (!node)
+                throw type_mismatch_error("bool", "null");
+            else if (auto val = node->as_boolean())
                 v = val->get();
             else
-                throw type_mismatch_error("bool", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
+                throw type_mismatch_error("bool", std::string(__tomlpp::impl::node_type_friendly_names[(int)node->type()]));
         }
     };
 
     // int
     template <typename T>
-    struct Serialize<::toml::node, T, std::enable_if_t<std::is_integral_v<T> && !std::is_same_v<T, bool>>> {
-        std::unique_ptr<::toml::node> from(T v) const {
-            return std::make_unique<::toml::value<int64_t>>(v);
+    struct Serialize<__tomlpp::node, T, std::enable_if_t<std::is_integral_v<T> && !std::is_same_v<T, bool>>> {
+        std::unique_ptr<__tomlpp::node> from(T v) const {
+            return std::make_unique<__tomlpp::value<int64_t>>(v);
         }
     };
 
     template <typename T>
-    struct Deserialize<::toml::node, T, std::enable_if_t<std::is_integral_v<T> && !std::is_same_v<T, bool>>> {
-        const ::toml::node *node;
+    struct Deserialize<__tomlpp::node, T, std::enable_if_t<std::is_integral_v<T> && !std::is_same_v<T, bool>>> {
+        const __tomlpp::node *node;
 
         void into(T &v) const {
-            if (auto val = node->as_integer())
+            if (!node)
+                throw type_mismatch_error("int", "null");
+            else if (auto val = node->as_integer())
                 v = (T)val->get();
             else
-                throw type_mismatch_error("int", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
+                throw type_mismatch_error("int", std::string(__tomlpp::impl::node_type_friendly_names[(int)node->type()]));
         }
     };
 
     // float
     template <typename T>
-    struct Serialize<::toml::node, T, std::enable_if_t<std::is_floating_point_v<T>>> {
-        std::unique_ptr<::toml::node> from(T v) const {
-            return std::make_unique<::toml::value<double>>(v);
+    struct Serialize<__tomlpp::node, T, std::enable_if_t<std::is_floating_point_v<T>>> {
+        std::unique_ptr<__tomlpp::node> from(T v) const {
+            return std::make_unique<__tomlpp::value<double>>(v);
         }
     };
 
     template <typename T>
-    struct Deserialize<::toml::node, T, std::enable_if_t<std::is_floating_point_v<T>>> {
-        const ::toml::node *node;
+    struct Deserialize<__tomlpp::node, T, std::enable_if_t<std::is_floating_point_v<T>>> {
+        const __tomlpp::node *node;
 
         void into(T &v) const {
-            if (auto val = node->as_floating_point())
+            if (!node)
+                throw type_mismatch_error("float", "null");
+            else if (auto val = node->as_floating_point())
                 v = (T)val->get();
             else
-                throw type_mismatch_error("float", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
+                throw type_mismatch_error("float", std::string(__tomlpp::impl::node_type_friendly_names[(int)node->type()]));
         }
     };
 
     // string
     template <>
-    struct Serialize<::toml::node, std::string_view> {
-        std::unique_ptr<::toml::node> from(std::string_view v) const {
-            return std::make_unique<::toml::value<std::string>>(std::string(v));
+    struct Serialize<__tomlpp::node, std::string_view> {
+        std::unique_ptr<__tomlpp::node> from(std::string_view v) const {
+            return std::make_unique<__tomlpp::value<std::string>>(std::string(v));
         }
 
-        std::unique_ptr<::toml::node> from_raw(std::string_view v) const {
-            ::toml::table tbl;
+        std::unique_ptr<__tomlpp::node> from_raw(std::string_view v) const {
+            __tomlpp::table tbl;
             try {
-                tbl = ::toml::parse(v);
+                tbl = __tomlpp::parse(v);
             } catch (std::exception &e) {
                 throw error(e.what());
             }
-            return std::make_unique<::toml::table>(std::move(tbl));
+            return std::make_unique<__tomlpp::table>(std::move(tbl));
         }
     };
 
     template <>
-    struct Serialize<::toml::node, std::string> {
-        std::unique_ptr<::toml::node> from(const std::string &v) const {
-            return std::make_unique<::toml::value<std::string>>(v);
+    struct Serialize<__tomlpp::node, std::string> {
+        std::unique_ptr<__tomlpp::node> from(const std::string &v) const {
+            return std::make_unique<__tomlpp::value<std::string>>(v);
         }
 
-        std::unique_ptr<::toml::node> from_raw(const std::string &v) const {
-            return Serialize<::toml::node, std::string_view>{}.from_raw(v);
+        std::unique_ptr<__tomlpp::node> from_raw(const std::string &v) const {
+            return Serialize<__tomlpp::node, std::string_view>{}.from_raw(v);
         }
     };
 
     template <>
-    struct Deserialize<::toml::node, std::string> {
-        const ::toml::node *node;
+    struct Deserialize<__tomlpp::node, std::string> {
+        const __tomlpp::node *node;
 
         void into(std::string &v) const {
-            if (auto val = node->as_string())
+            if (!node)
+                throw type_mismatch_error("string", "null");
+            else if (auto val = node->as_string())
                 v = val->get();
             else
-                throw type_mismatch_error("string", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
+                throw type_mismatch_error("string", std::string(__tomlpp::impl::node_type_friendly_names[(int)node->type()]));
         }
 
         void into_raw(std::string &v) const {
-            if (auto tbl = node->as_table()) {
+            if (!node)
+                throw type_mismatch_error("table", "null");
+            else if (auto tbl = node->as_table()) {
                 std::ostringstream oss;
                 oss << *tbl;
                 v = oss.str();
             } else
-                throw type_mismatch_error("table", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
+                throw type_mismatch_error("table", std::string(__tomlpp::impl::node_type_friendly_names[(int)node->type()]));
         }
     };
 
     // optional
     template <typename T>
-    struct Serialize<::toml::node, std::optional<T>, std::enable_if_t<std::is_default_constructible_v<T>>> {
-        std::unique_ptr<::toml::node> from(const std::optional<T> &v) const {
-            Serialize<::toml::node, T> ser = {};
+    struct Serialize<
+        __tomlpp::node,
+        std::optional<T>,
+        std::enable_if_t<std::is_default_constructible_v<T> && is_serializable_v<__tomlpp::node, T>>> {
+        std::unique_ptr<__tomlpp::node> from(const std::optional<T> &v) const {
+            Serialize<__tomlpp::node, T> ser = {};
             if (v.has_value())
                 return ser.from(*v);
             else
@@ -204,8 +229,11 @@ namespace cppxx::serde {
     };
 
     template <typename T>
-    struct Deserialize<::toml::node, std::optional<T>, std::enable_if_t<std::is_default_constructible_v<T>>> {
-        const ::toml::node *node;
+    struct Deserialize<
+        __tomlpp::node,
+        std::optional<T>,
+        std::enable_if_t<std::is_default_constructible_v<T> && is_deserializable_v<__tomlpp::node, T>>> {
+        const __tomlpp::node *node;
 
         void into(std::optional<T> &v) const {
             if (!node) {
@@ -213,29 +241,32 @@ namespace cppxx::serde {
                 return;
             }
             v = T{};
-            Deserialize<::toml::node, T>{node}.into(*v);
+            Deserialize<__tomlpp::node, T>{node}.into(*v);
         }
     };
 
     // array
     template <typename T, size_t N>
-    struct Serialize<::toml::node, std::array<T, N>> {
-        std::unique_ptr<::toml::node> from(const std::array<T, N> &v) const {
-            auto arr = std::make_unique<::toml::array>();
+    struct Serialize<__tomlpp::node, std::array<T, N>, std::enable_if_t<is_serializable_v<__tomlpp::node, T>>> {
+        std::unique_ptr<__tomlpp::node> from(const std::array<T, N> &v) const {
+            auto arr = std::make_unique<__tomlpp::array>();
             for (auto &item : v)
-                arr->push_back(std::move(*Serialize<::toml::node, T>{}.from(item)));
+                arr->push_back(std::move(*Serialize<__tomlpp::node, T>{}.from(item)));
             return arr;
         }
     };
 
     template <typename T, size_t N>
-    struct Deserialize<::toml::node, std::array<T, N>> {
-        const ::toml::node *node;
+    struct Deserialize<__tomlpp::node, std::array<T, N>, std::enable_if_t<is_deserializable_v<__tomlpp::node, T>>> {
+        const __tomlpp::node *node;
 
         void into(std::array<T, N> &v) const {
+            if (!node)
+                throw type_mismatch_error("array", "null");
+
             auto arr = node->as_array();
             if (!arr)
-                throw type_mismatch_error("array", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
+                throw type_mismatch_error("array", std::string(__tomlpp::impl::node_type_friendly_names[(int)node->type()]));
 
             const size_t n = arr->size();
             if (n != N)
@@ -243,7 +274,7 @@ namespace cppxx::serde {
 
             for (size_t i = 0; i < n; ++i)
                 try {
-                    Deserialize<::toml::node, T>{arr->get(i)}.into(v[i]);
+                    Deserialize<__tomlpp::node, T>{arr->get(i)}.into(v[i]);
                 } catch (error &e) {
                     e.add_context(i);
                     throw;
@@ -252,29 +283,35 @@ namespace cppxx::serde {
     };
 
     template <typename T>
-    struct Serialize<::toml::node, std::vector<T>> {
-        std::unique_ptr<::toml::node> from(const std::vector<T> &v) const {
-            auto arr = std::make_unique<::toml::array>();
+    struct Serialize<__tomlpp::node, std::vector<T>, std::enable_if_t<is_serializable_v<__tomlpp::node, T>>> {
+        std::unique_ptr<__tomlpp::node> from(const std::vector<T> &v) const {
+            auto arr = std::make_unique<__tomlpp::array>();
             for (auto &item : v)
-                arr->push_back(std::move(*Serialize<::toml::node, T>{}.from(item)));
+                arr->push_back(std::move(*Serialize<__tomlpp::node, T>{}.from(item)));
             return arr;
         }
     };
 
     template <typename T>
-    struct Deserialize<::toml::node, std::vector<T>, std::enable_if_t<std::is_default_constructible_v<T>>> {
-        const ::toml::node *node;
+    struct Deserialize<
+        __tomlpp::node,
+        std::vector<T>,
+        std::enable_if_t<std::is_default_constructible_v<T> && is_deserializable_v<__tomlpp::node, T>>> {
+        const __tomlpp::node *node;
 
         void into(std::vector<T> &v) const {
+            if (!node)
+                throw type_mismatch_error("array", "null");
+
             auto arr = node->as_array();
             if (!arr)
-                throw type_mismatch_error("array", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
+                throw type_mismatch_error("array", std::string(__tomlpp::impl::node_type_friendly_names[(int)node->type()]));
 
             const size_t n = arr->size();
             v.resize(n);
             for (size_t i = 0; i < n; ++i)
                 try {
-                    Deserialize<::toml::node, T>{arr->get(i)}.into(v[i]);
+                    Deserialize<__tomlpp::node, T>{arr->get(i)}.into(v[i]);
                 } catch (error &e) {
                     e.add_context(i);
                     throw;
@@ -283,32 +320,34 @@ namespace cppxx::serde {
     };
 
     template <typename... Ts>
-    struct Serialize<::toml::node, std::tuple<Ts...>> {
-        std::unique_ptr<::toml::node> from(const std::tuple<Ts...> &tpl) {
+    struct Serialize<__tomlpp::node, std::tuple<Ts...>> {
+        std::unique_ptr<__tomlpp::node> from(const std::tuple<Ts...> &tpl) {
             const TagInfoTuple<sizeof...(Ts)>         ti     = cppxx::toml::get_tag_info_from_tuple(tpl);
             const std::array<TagInfo, sizeof...(Ts)> &ts     = ti.ts;
             const bool                                is_obj = ti.is_obj;
 
-            std::unique_ptr<::toml::node> node =
-                is_obj ? std::unique_ptr<::toml::node>(new ::toml::table) : std::unique_ptr<::toml::node>(new ::toml::array);
+            std::unique_ptr<__tomlpp::node> node = is_obj ? std::unique_ptr<__tomlpp::node>(new __tomlpp::table)
+                                                          : std::unique_ptr<__tomlpp::node>(new __tomlpp::array);
+
             tuple_for_each(tpl, [&](const auto &item, const size_t i) {
                 const TagInfo &t = ts[i];
                 const auto    &v = detail::get_underlying_value(item);
                 using T          = std::decay_t<decltype(v)>;
 
-                if (!is_serializable_v<::toml::node, T> || (is_obj && t.key == "") || (t.omitempty && detail::is_empty_value(v)))
+                if (!is_serializable_v<__tomlpp::node, T> || (is_obj && t.key == "") ||
+                    (t.omitempty && detail::is_empty_value(v)))
                     return;
 
-                std::unique_ptr<::toml::node> val;
+                std::unique_ptr<__tomlpp::node> val;
                 try {
                     if (t.noserde)
                         if constexpr (std::is_same_v<T, std::string>)
-                            val = Serialize<::toml::node, std::string>{}.from_raw(v);
+                            val = Serialize<__tomlpp::node, std::string>{}.from_raw(v);
                         else
                             throw error("field with tag `noserde` can only be serialized from std::string");
                     else {
-                        if constexpr (is_serializable_v<::toml::node, T>)
-                            val = Serialize<::toml::node, T>{}.from(v);
+                        if constexpr (is_serializable_v<__tomlpp::node, T>)
+                            val = Serialize<__tomlpp::node, T>{}.from(v);
                     }
                 } catch (error &e) {
                     if (is_obj)
@@ -328,10 +367,13 @@ namespace cppxx::serde {
     };
 
     template <typename... Ts>
-    struct Deserialize<::toml::node, std::tuple<Ts...>> {
-        const ::toml::node *node;
+    struct Deserialize<__tomlpp::node, std::tuple<Ts...>> {
+        const __tomlpp::node *node;
 
         void into(std::tuple<Ts...> &tpl) const {
+            if (!node)
+                throw type_mismatch_error("table|array", "null");
+
             const TagInfoTuple<sizeof...(Ts)>         ti     = cppxx::toml::get_tag_info_from_tuple(tpl);
             const std::array<TagInfo, sizeof...(Ts)> &ts     = ti.ts;
             const bool                                is_obj = ti.is_obj;
@@ -339,9 +381,9 @@ namespace cppxx::serde {
             auto arr = node->as_array();
             auto tbl = node->as_table();
             if (!is_obj && !arr)
-                throw type_mismatch_error("array", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
+                throw type_mismatch_error("array", std::string(__tomlpp::impl::node_type_friendly_names[(int)node->type()]));
             if (is_obj && !tbl)
-                throw type_mismatch_error("table", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
+                throw type_mismatch_error("table", std::string(__tomlpp::impl::node_type_friendly_names[(int)node->type()]));
 
             tuple_for_each(tpl, [&](auto &item, const size_t i) {
                 const TagInfo &t = ts[i];
@@ -351,19 +393,19 @@ namespace cppxx::serde {
                 if (is_obj && t.key == "")
                     return;
 
-                const ::toml::node *val = is_obj ? tbl->get(t.key) : arr->get(i);
+                const __tomlpp::node *val = is_obj ? tbl->get(t.key) : arr->get(i);
                 if (!val && t.skipmissing)
                     return;
 
                 try {
                     if (t.noserde)
                         if constexpr (std::is_same_v<T, std::string>)
-                            Deserialize<::toml::node, std::string>{val}.into_raw(v);
+                            Deserialize<__tomlpp::node, std::string>{val}.into_raw(v);
                         else
                             throw error("field with tag `noserde` can only be deserialized into std::string");
                     else {
-                        if constexpr (is_deserializable_v<::toml::node, T>)
-                            Deserialize<::toml::node, T>{val}.into(v);
+                        if constexpr (is_deserializable_v<__tomlpp::node, T>)
+                            Deserialize<__tomlpp::node, T>{val}.into(v);
                     }
                 } catch (error &e) {
                     if (is_obj)
@@ -377,17 +419,17 @@ namespace cppxx::serde {
     };
 
     template <typename... T>
-    struct Serialize<::toml::node, std::variant<T...>> {
-        std::unique_ptr<::toml::node> from(const std::variant<T...> &v) const {
+    struct Serialize<__tomlpp::node, std::variant<T...>> {
+        std::unique_ptr<__tomlpp::node> from(const std::variant<T...> &v) const {
             return std::visit(
-                [](const auto &var) { return Serialize<::toml::node, std::decay_t<decltype(var)>>{}.from(var); }, v
+                [](const auto &var) { return Serialize<__tomlpp::node, std::decay_t<decltype(var)>>{}.from(var); }, v
             );
         }
     };
 
     template <typename... T>
-    struct Deserialize<::toml::node, std::variant<T...>, std::enable_if_t<(std::is_default_constructible_v<T> && ...)>> {
-        const ::toml::node *node;
+    struct Deserialize<__tomlpp::node, std::variant<T...>, std::enable_if_t<(std::is_default_constructible_v<T> && ...)>> {
+        const __tomlpp::node *node;
 
         void into(std::variant<T...> &v) const {
             try_for_each(v, std::index_sequence_for<T...>{});
@@ -404,7 +446,7 @@ namespace cppxx::serde {
                     try {
                         if (!done) {
                             auto element = Elem{};
-                            Deserialize<::toml::node, Elem>{node}.into(element);
+                            Deserialize<__tomlpp::node, Elem>{node}.into(element);
                             v    = std::move(element);
                             done = true;
                         }
@@ -416,35 +458,41 @@ namespace cppxx::serde {
             );
             if (!done) {
                 type_names.pop_back();
-                throw type_mismatch_error(type_names, std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
+                throw type_mismatch_error(type_names, std::string(__tomlpp::impl::node_type_friendly_names[(int)node->type()]));
             }
         }
     };
 
     // table
     template <typename T>
-    struct Serialize<::toml::node, std::unordered_map<std::string, T>> {
-        std::unique_ptr<::toml::node> from(const std::unordered_map<std::string, T> &v) const {
-            std::unique_ptr<::toml::node> node = std::make_unique<::toml::table>();
+    struct Serialize<__tomlpp::node, std::unordered_map<std::string, T>, std::enable_if_t<is_serializable_v<__tomlpp::node, T>>> {
+        std::unique_ptr<__tomlpp::node> from(const std::unordered_map<std::string, T> &v) const {
+            std::unique_ptr<__tomlpp::node> node = std::make_unique<__tomlpp::table>();
             for (auto &[key, item] : v)
-                node->as_table()->insert_or_assign(key, std::move(*Serialize<::toml::node, T>{}.from(item)));
+                node->as_table()->insert_or_assign(key, std::move(*Serialize<__tomlpp::node, T>{}.from(item)));
             return node;
         }
     };
 
     template <typename T>
-    struct Deserialize<::toml::node, std::unordered_map<std::string, T>, std::enable_if_t<std::is_default_constructible_v<T>>> {
-        const ::toml::node *node;
+    struct Deserialize<
+        __tomlpp::node,
+        std::unordered_map<std::string, T>,
+        std::enable_if_t<std::is_default_constructible_v<T> && is_deserializable_v<__tomlpp::node, T>>> {
+        const __tomlpp::node *node;
 
         void into(std::unordered_map<std::string, T> &v) const {
+            if (!node)
+                throw type_mismatch_error("table", "null");
+
             auto table = node->as_table();
             if (!table)
-                throw type_mismatch_error("table", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
+                throw type_mismatch_error("table", std::string(__tomlpp::impl::node_type_friendly_names[(int)node->type()]));
 
             for (auto [key, node] : *table) {
                 auto item = T{};
                 try {
-                    Deserialize<::toml::node, T>{&node}.into(item);
+                    Deserialize<__tomlpp::node, T>{&node}.into(item);
                 } catch (error &e) {
                     e.add_context(std::string_view(key));
                     throw;
@@ -456,9 +504,9 @@ namespace cppxx::serde {
 
     // std::tm
     template <>
-    struct Serialize<::toml::node, std::tm> {
-        std::unique_ptr<::toml::node> from(const std::tm &tm) const {
-            ::toml::date_time dt;
+    struct Serialize<__tomlpp::node, std::tm> {
+        std::unique_ptr<__tomlpp::node> from(const std::tm &tm) const {
+            __tomlpp::date_time dt;
 
             dt.date.year  = tm.tm_year + 1900;
             dt.date.month = tm.tm_mon + 1;
@@ -468,16 +516,18 @@ namespace cppxx::serde {
             dt.time.minute = tm.tm_min;
             dt.time.second = tm.tm_sec;
 
-            return std::make_unique<::toml::value<::toml::date_time>>(dt);
+            return std::make_unique<__tomlpp::value<__tomlpp::date_time>>(dt);
         }
     };
 
     template <>
-    struct Deserialize<::toml::node, std::tm> {
-        const ::toml::node *node;
+    struct Deserialize<__tomlpp::node, std::tm> {
+        const __tomlpp::node *node;
 
         void into(std::tm &v) const {
-            if (auto val = node->as_time())
+            if (!node)
+                throw type_mismatch_error("time", "null");
+            else if (auto val = node->as_time())
                 to_tm(val->get(), v);
             else if (auto val = node->as_date())
                 to_tm(val->get(), v);
@@ -485,16 +535,16 @@ namespace cppxx::serde {
                 to_tm(val->get().time, v);
                 to_tm(val->get().date, v);
             } else
-                throw type_mismatch_error("time", std::string(::toml::impl::node_type_friendly_names[(int)node->type()]));
+                throw type_mismatch_error("time", std::string(__tomlpp::impl::node_type_friendly_names[(int)node->type()]));
         }
 
-        static void to_tm(const ::toml::date &d, std::tm &tm) {
+        static void to_tm(const __tomlpp::date &d, std::tm &tm) {
             tm.tm_year = d.year - 1900; // tm_year is years since 1900
             tm.tm_mon  = d.month - 1;   // tm_mon is 0–11
             tm.tm_mday = d.day;
         }
 
-        static void to_tm(const ::toml::time &t, std::tm &tm) {
+        static void to_tm(const __tomlpp::time &t, std::tm &tm) {
             tm.tm_hour = t.hour;
             tm.tm_min  = t.minute;
             tm.tm_sec  = t.second;
@@ -503,20 +553,20 @@ namespace cppxx::serde {
 
 #ifdef BOOST_PFR_HPP
     template <typename S>
-    struct Serialize<::toml::node, S, std::enable_if_t<std::is_aggregate_v<S> && !std::is_same_v<S, std::tm>>> {
-        std::unique_ptr<::toml::node> from(const S &v) const {
+    struct Serialize<__tomlpp::node, S, std::enable_if_t<std::is_aggregate_v<S> && !std::is_same_v<S, std::tm>>> {
+        std::unique_ptr<__tomlpp::node> from(const S &v) const {
             auto tpl = boost::pfr::structure_tie(v);
-            return Serialize<::toml::node, decltype(tpl)>{}.from(tpl);
+            return Serialize<__tomlpp::node, decltype(tpl)>{}.from(tpl);
         }
     };
 
     template <typename S>
-    struct Deserialize<::toml::node, S, std::enable_if_t<std::is_aggregate_v<S> && !std::is_same_v<S, std::tm>>> {
-        const ::toml::node *node;
+    struct Deserialize<__tomlpp::node, S, std::enable_if_t<std::is_aggregate_v<S> && !std::is_same_v<S, std::tm>>> {
+        const __tomlpp::node *node;
 
         void into(S &v) const {
             auto tpl = boost::pfr::structure_tie(v);
-            Deserialize<::toml::node, decltype(tpl)>{node}.into(tpl);
+            Deserialize<__tomlpp::node, decltype(tpl)>{node}.into(tpl);
         }
     };
 #endif
@@ -524,19 +574,19 @@ namespace cppxx::serde {
 #ifdef NEARGYE_MAGIC_ENUM_HPP
     // enum
     template <typename S>
-    struct Serialize<::toml::node, S, std::enable_if_t<std::is_enum_v<S>>> {
-        std::unique_ptr<::toml::node> from(const S &v) const {
-            return Serialize<::toml::node, std::string_view>{}.from(magic_enum::enum_name(v));
+    struct Serialize<__tomlpp::node, S, std::enable_if_t<std::is_enum_v<S>>> {
+        std::unique_ptr<__tomlpp::node> from(const S &v) const {
+            return Serialize<__tomlpp::node, std::string_view>{}.from(magic_enum::enum_name(v));
         }
     };
 
     template <typename S>
-    struct Deserialize<::toml::node, S, std::enable_if_t<std::is_enum_v<S>>> {
-        const ::toml::node *node;
+    struct Deserialize<__tomlpp::node, S, std::enable_if_t<std::is_enum_v<S>>> {
+        const __tomlpp::node *node;
 
         void into(S &v) const {
             auto str = std::string();
-            Deserialize<::toml::node, std::string>{node}.into(str);
+            Deserialize<__tomlpp::node, std::string>{node}.into(str);
 
             auto e = magic_enum::enum_cast<S>(str);
             if (!e.has_value()) {
@@ -556,19 +606,19 @@ namespace cppxx::serde {
 namespace cppxx::toml::marzer_toml {
     template <typename T>
     void parse(const std::string &str, T &val) {
-        cppxx::serde::Parse<::toml::table, std::string>{str}.into(val);
+        cppxx::toml::marzer_toml::Parse{str}.into(val);
     }
 
     template <typename T>
     void parse_from_file(const std::string &path, T &val) {
-        cppxx::serde::Parse<::toml::table, std::string>{path}.into(val, true);
+        cppxx::toml::marzer_toml::Parse{path}.into(val, true);
     }
 
     template <typename T>
     [[nodiscard]]
     std::enable_if_t<std::is_default_constructible_v<T>, T> parse(const std::string &str) {
         T val = {};
-        cppxx::serde::Parse<::toml::table, std::string>{str}.into(val);
+        cppxx::toml::marzer_toml::Parse{str}.into(val);
         return val;
     }
 
@@ -576,14 +626,14 @@ namespace cppxx::toml::marzer_toml {
     [[nodiscard]]
     std::enable_if_t<std::is_default_constructible_v<T>, T> parse_from_file(const std::string &path) {
         T val = {};
-        cppxx::serde::Parse<::toml::table, std::string>{path}.into(val, true);
+        cppxx::toml::marzer_toml::Parse{path}.into(val, true);
         return val;
     }
 
     template <typename T>
     [[nodiscard]]
     std::string dump(const T &val) {
-        return cppxx::serde::Dump<::toml::table, std::string>{}.from(val);
+        return cppxx::toml::marzer_toml::Dump{}.from(val);
     }
 } // namespace cppxx::toml::marzer_toml
 #endif

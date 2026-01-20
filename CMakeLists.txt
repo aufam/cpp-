@@ -108,6 +108,12 @@ CPMAddPackage(
     GIT_TAG         v3.2.1
 )
 
+CPMAddPackage(
+    NAME            CLI11
+    GIT_REPOSITORY  "https://github.com/CLIUtils/CLI11"
+    GIT_TAG         v2.6.1
+)
+
 ## sha256
 CPMAddPackage(
     NAME            sha256
@@ -156,6 +162,7 @@ target_link_libraries(cppxx_private INTERFACE
     Boost::pfr
     magic_enum
     cxxopts
+    CLI11
     sha256
 )
 

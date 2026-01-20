@@ -3,6 +3,7 @@
 
 #include <cpp++/serde/tag_info.h>
 #include <optional>
+#include <variant>
 
 #ifndef FMT_RANGES_H_
 #    include <fmt/ranges.h>
@@ -30,7 +31,7 @@ struct fmt::formatter<cppxx::Tag<T>, char, std::enable_if_t<fmt::is_formattable<
         if (cppxx::serde::TagInfo ti = cppxx::serde::get_tag_info(v, "fmt"); ti.key != "") {
             fmt::context::iterator out = c.out();
 
-            out = fmt::format_to(out, ti.key);
+            out = fmt::format_to(out, "{}", ti.key);
             out = fmt::format_to(out, "=");
         }
         return fmt::formatter<T>::format(v.get_value(), c);
@@ -48,12 +49,41 @@ struct fmt::formatter<std::optional<T>, char, std::enable_if_t<fmt::is_formattab
     }
 };
 
+template <typename... T>
+struct fmt::formatter<std::variant<T...>, char, std::enable_if_t<(fmt::is_formattable<T, char>::value && ...)>> {
+    constexpr auto parse(fmt::format_parse_context &ctx) {
+        return ctx.begin();
+    }
+
+    fmt::context::iterator format(const std::variant<T...> &v, fmt::context &c) const {
+        fmt::context::iterator out = c.out();
+        return std::visit(
+            [&](const auto &var) {
+                if constexpr (std::is_same_v<std::decay_t<decltype(var)>, std::string> ||
+                              std::is_same_v<std::decay_t<decltype(var)>, std::string_view>)
+                    return fmt::format_to(out, "{:?}", var);
+                else
+                    return fmt::format_to(out, "{}", var);
+            },
+            v
+        );
+    }
+};
+
 #ifdef BOOST_PFR_HPP
 template <typename S>
-struct fmt::formatter<S, char, std::enable_if_t<std::is_aggregate_v<S> && !std::is_same_v<S, std::tm>>> : fmt::formatter<int> {
+struct fmt::formatter<S, char, std::enable_if_t<std::is_aggregate_v<S> && !std::is_same_v<S, std::tm>>> {
+    constexpr auto parse(fmt::format_parse_context &ctx) {
+        return ctx.begin();
+    }
+
     fmt::context::iterator format(const S &v, fmt::context &c) const {
         fmt::context::iterator out = c.out();
-        return fmt::format_to(out, "{}", boost::pfr::structure_tie(v));
+
+        auto tpl =
+            std::apply([&](auto &...item) { return cppxx::tie_if<fmt::is_formattable>(item...); }, boost::pfr::structure_tie(v));
+
+        return fmt::format_to(out, "{}", tpl);
     }
 };
 #endif
@@ -62,7 +92,8 @@ struct fmt::formatter<S, char, std::enable_if_t<std::is_aggregate_v<S> && !std::
 template <typename S>
 struct fmt::formatter<S, char, std::enable_if_t<std::is_enum_v<S>>> : fmt::formatter<std::string_view> {
     fmt::context::iterator format(S v, fmt::context &c) const {
-        return fmt::formatter<std::string_view>::format(magic_enum::enum_name(v), c);
+        fmt::context::iterator out = c.out();
+        return fmt::format_to(out, "{}", magic_enum::enum_name(v));
     }
 };
 #endif

@@ -40,7 +40,12 @@ namespace cppxx::json::nlohmann_json {
 namespace nlohmann {
     // optional
     template <typename T>
-    struct adl_serializer<std::optional<T>> {
+    struct adl_serializer<
+        std::optional<T>,
+        std::enable_if_t<
+            std::is_convertible_v<T, nlohmann::json>,
+            std::void_t<decltype(std::declval<const nlohmann::json &>().get<T>())>>> {
+
         static void to_json(json &j, const std::optional<T> &opt) {
             if (opt.has_value())
                 j = *opt;
@@ -157,26 +162,24 @@ namespace nlohmann {
     };
 
     template <typename... T>
-    struct adl_serializer<std::variant<T...>> {
-        static void from_json(const json &j, std::variant<T...> &v) {
-            try_for_each(j, v, std::index_sequence_for<T...>{});
-        }
+    struct adl_serializer<
+        std::variant<T...>,
+        std::enable_if_t<
+            ((std::is_convertible_v<T, nlohmann::json> && cppxx::serde::is_deserializable_v<nlohmann::json, T>) && ...)>> {
 
         static void to_json(json &j, const std::variant<T...> &v) {
             std::visit([&](const auto &var) { j = var; }, v);
         }
 
-        template <size_t... I>
-        static void try_for_each(const json &j, std::variant<T...> &v, std::index_sequence<I...>) {
+        static void from_json(const json &j, std::variant<T...> &v) {
             bool        done = false;
             std::string type_names;
             (
                 [&]() {
-                    using Elem = std::tuple_element_t<I, std::tuple<T...>>;
                     try {
                         if (!done) {
-                            auto element = Elem{};
-                            cppxx::serde::Deserialize<nlohmann::json, Elem>{j}.into(element);
+                            auto element = T{};
+                            cppxx::serde::Deserialize<nlohmann::json, T>{j}.into(element);
                             v    = std::move(element);
                             done = true;
                         }
