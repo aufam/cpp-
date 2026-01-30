@@ -57,7 +57,7 @@ namespace cppxx {
             return std::move(value);
         }
 
-        std::string_view get_tag(std::string_view key) const {
+        constexpr std::string_view get_tag(std::string_view key) const {
             const std::string_view tag = this->tag;
 
             for (size_t pos = 0;;) {

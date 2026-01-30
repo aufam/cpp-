@@ -1,0 +1,6 @@
+[package]
+name = "cpp++"
+version = "0.1.0"
+
+[dependencies]
+fmt = { git = "https://github.com/fmtlib/fmt", tag = "11.2.0" }

@@ -1,8 +1,10 @@
 #include <cpp++/proto/protobuf.h>
 #include <cpp++/toml/marzer_toml.h>
+#include <cpp++/json/yy_json.h>
 #include <cpp++/cli/cli11.h>
 #include <cpp++/defer.h>
 #include <cpp++/fmt.h>
+#include "config.h"
 
 template <typename T>
 using Tag = cppxx::Tag<T>;
@@ -27,6 +29,15 @@ struct Data {
 };
 
 int main(int argc, char **argv) {
+    Config cfg;
+    cppxx::toml::marzer_toml::parse_from_file("./cpp++.toml", cfg);
+
+    cfg.cache() = "/home/aufa/.cache/cpp++";
+    cfg.resolve();
+
+    // std::cout << cppxx::json::yy_json::dump(cfg, YYJSON_WRITE_PRETTY_TWO_SPACES) << std::endl;
+    return 0;
+
     Data data;
     fmt::println("default = {}", data);
 

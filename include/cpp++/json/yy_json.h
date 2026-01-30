@@ -1,6 +1,7 @@
 #ifndef CPPXX_JSON_YYJSON_H
 #define CPPXX_JSON_YYJSON_H
 
+#include <cpp++/extend.h>
 #include <cpp++/json/json.h>
 #include <cpp++/serde/serialize.h>
 #include <cpp++/serde/deserialize.h>
@@ -376,12 +377,15 @@ namespace cppxx::serde {
         yyjson_mut_doc *doc;
 
         yyjson_mut_val *from(const std::tuple<Ts...> &tpl) const {
-            const TagInfoTuple<sizeof...(Ts)>         ti     = cppxx::json::get_tag_info_from_tuple(tpl);
-            const std::array<TagInfo, sizeof...(Ts)> &ts     = ti.ts;
-            const bool                                is_obj = ti.is_obj;
+            const auto     flattened = flatten(tpl);
+            constexpr auto size      = std::tuple_size_v<decltype(flattened)>;
+
+            const TagInfoTuple<size>         ti     = cppxx::json::get_tag_info_from_tuple(flattened);
+            const std::array<TagInfo, size> &ts     = ti.ts;
+            const bool                       is_obj = ti.is_obj;
 
             yyjson_mut_val *obj_or_arr = is_obj ? yyjson_mut_obj(doc) : yyjson_mut_arr(doc);
-            tuple_for_each(tpl, [&](const auto &item, const size_t i) {
+            tuple_for_each(flattened, [&](const auto &item, const size_t i) {
                 const TagInfo &t            = ts[i];
                 const auto    &v            = detail::get_underlying_value(item);
                 using T                     = std::decay_t<decltype(v)>;
@@ -422,9 +426,12 @@ namespace cppxx::serde {
         yyjson_val *val;
 
         void into(std::tuple<Ts...> &tpl) const {
-            const TagInfoTuple<sizeof...(Ts)>         ti     = cppxx::json::get_tag_info_from_tuple(tpl);
-            const std::array<TagInfo, sizeof...(Ts)> &ts     = ti.ts;
-            const bool                                is_obj = ti.is_obj;
+            auto           flattened = flatten(tpl);
+            constexpr auto size      = std::tuple_size_v<decltype(flattened)>;
+
+            const TagInfoTuple<size>         ti     = cppxx::json::get_tag_info_from_tuple(flattened);
+            const std::array<TagInfo, size> &ts     = ti.ts;
+            const bool                       is_obj = ti.is_obj;
 
             yyjson_val *obj = this->val;
             yyjson_val *arr = this->val;
@@ -434,7 +441,7 @@ namespace cppxx::serde {
             if (!is_obj && !yyjson_is_arr(arr))
                 throw type_mismatch_error("array", yyjson_get_type_desc(arr));
 
-            tuple_for_each(tpl, [&](auto &item, const size_t i) {
+            tuple_for_each(flattened, [&](auto &item, const size_t i) {
                 const TagInfo &t              = ts[i];
                 auto          &v              = detail::get_underlying_value(item);
                 using T                       = std::decay_t<decltype(v)>;

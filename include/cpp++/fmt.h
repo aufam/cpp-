@@ -31,8 +31,7 @@ struct fmt::formatter<cppxx::Tag<T>, char, std::enable_if_t<fmt::is_formattable<
         if (cppxx::serde::TagInfo ti = cppxx::serde::get_tag_info(v, "fmt"); ti.key != "") {
             fmt::context::iterator out = c.out();
 
-            out = fmt::format_to(out, "{}", ti.key);
-            out = fmt::format_to(out, "=");
+            out = fmt::format_to(out, "{}=", ti.key);
         }
         return fmt::formatter<T>::format(v.get_value(), c);
     }

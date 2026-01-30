@@ -47,25 +47,25 @@ namespace {
     static_assert(cppxx::serde::is_serializable<nlohmann::json, std::unordered_map<std::string, std::string>>::value);
 
     constexpr const char *json_full = R"json(
-    {
-      "name": "Sucipto",
-      "age": 24,
-      "address": "Jakarta",
-      "department": "Engineering",
-      "salary": 1000,
-      "createdAt": "2024-01-02T03:04:05Z"
-    }
+        {
+          "name": "Sucipto",
+          "age": 24,
+          "address": "Jakarta",
+          "department": "Engineering",
+          "salary": 1000,
+          "createdAt": "2024-01-02T03:04:05Z"
+        }
     )json";
 
 
     constexpr const char *json_missing_department = R"json(
-    {
-      "name": "Sucipto",
-      "age": 24,
-      "address": "Jakarta",
-      "salary": 1000,
-      "createdAt": "2024-01-02T03:04:05Z"
-    }
+        {
+          "name": "Sucipto",
+          "age": 24,
+          "address": "Jakarta",
+          "salary": 1000,
+          "createdAt": "2024-01-02T03:04:05Z"
+        }
     )json";
 
 } // namespace

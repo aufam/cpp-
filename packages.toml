@@ -1,0 +1,162 @@
+#
+# fmt
+#
+[fmt.package]
+name = "fmt"
+
+[fmt.dependencies]
+fmt = { git = "https://github.com/fmtlib/fmt", tag = "{version}" }
+
+
+#
+# spdlog
+#
+[spdlog.package]
+name = "spdlog"
+
+[spdlog.dependencies]
+spdlog = { git = "https://github.com/gabime/spdlog", tag = "v{version}" }
+
+[spdlog.targets]
+default = { src = ["{spdlog}/src/*"], inc = ["public:{spdlog}/include"], flags = ["public:-DSPDLOG_FMT_EXTERNAL"] }
+fmt = { src = ["{spdlog}/src/*"], inc = ["public:{spdlog}/include"] }
+
+
+#
+# nlohmann_json
+#
+[nlohmann_json.package]
+name = "nlohmann_json"
+
+[nlohmann_json.dependencies]
+json = { path = "https://github.com/nlohmann/json/releases/download/v{version}/json.tar.xz" }
+
+
+#
+# yyjson
+#
+[yyjson.package]
+name = "yyjson"
+
+[yyjson.dependencies]
+json = { git = "https://github.com/ibireme/yyjson", tag = "{version}" }
+
+[yyjson.targets]
+default = { src = "{json}/src/yyjson.c", inc = "{json}/src" }
+
+
+#
+# rapidjson
+#
+[rapidjson.package]
+name = "rapidjson"
+
+[rapidjson.dependencies]
+json = { git = "https://github.com/Tencent/rapidjson", tag = "v{version}" }
+
+
+#
+# toml++
+#
+['toml++'.package]
+name = "'toml++'"
+
+['toml++'.dependencies]
+json = { git = "https://github.com/marzer/tomlplusplus", tag = "v{version}" }
+
+
+#
+# yaml-cpp
+#
+[yaml-cpp.package]
+name = "yaml-cpp"
+
+[yaml-cpp.dependencies]
+json = { git = "https://github.com/jbeder/yaml-cpp", tag = "yaml-cpp-{version}" }
+
+
+#
+# Boost.PFR
+#
+[pfr.package]
+name = "pfr"
+
+[pfr.dependencies]
+pfr = { git = "https://github.com/boostorg/pfr", tag = "boost-{version}" }
+
+
+#
+# Magic Enum
+#
+[magic_enum.package]
+name = "magic_enum"
+
+[magic_enum.dependencies]
+magic_enum = { git = "https://github.com/Neargye/magic_enum", tag = "v{version}" }
+
+
+#
+# CLI11
+#
+[CLI11.package]
+name = "CLI11"
+
+[CLI11.dependencies]
+cli = { git = "https://github.com/CLIUtils/CLI11", tag = "v{version}" }
+
+
+#
+# cpp-httplib
+#
+[httplib.package]
+name = "httplib"
+
+[httplib.dependencies]
+http = { git = "https://github.com/yhirose/cpp-httplib", tag = "v{version}" }
+
+[httplib.targets]
+default = [{ inc = ["public:{http}"], link-flags = ["-lpthread"] }]
+ssl = { flags = ["public:-DCPPHTTPLIB_OPENSSL_SUPPORT"], link-flags = ["-lssl", "-lcrypto"] }
+zlib = { flags = ["public:-DCPPHTTPLIB_ZLIB_SUPPORT"], link-flags = ["-lz"] }
+
+
+#
+# sha256
+#
+[sha256.package]
+name = "sha256"
+
+[sha256.dependencies]
+sha256 = { git = "https://github.com/LekKit/sha256", branch = "{version}" }
+
+[sha256.targets]
+default = { src = "{sha256}/sha256.c", inc = ["public:{sha256}"] }
+
+
+#
+# gtest
+#
+[gtest.package]
+name = "gtest"
+
+[gtest.dependencies]
+gtest = { path = "https://github.com/google/googletest/releases/download/v{version}/googletest-{version}.tar.gz" }
+
+[gtest.targets]
+default = { src = ["{gtest}/googletest/src/gtest-all.cc"], inc = ["public:{gtest}/googletest/include", "{gtest}/googletest"] }
+gtest-main = { src = ["{gtest}/googletest/src/gtest-all.cc", "{gtest}/googletest/src/gtest_main.cc"], inc = ["public:{gtest}/googletest/include", "{gtest}/googletest"] }
+
+
+#
+# onnxruntime
+#
+[onnx.package]
+name = "onnx"
+
+[onnx.dependencies]
+cpu = { path = "https://github.com/microsoft/onnxruntime/releases/download/v{version}/onnxruntime-linux-x64-{version}.tgz", optional = true }
+gpu = { path = "https://github.com/microsoft/onnxruntime/releases/download/v{version}/onnxruntime-linux-x64-gpu-{version}.tgz", optional = true }
+
+[onnx.targets]
+default = { src = ["{cpu}/lib/libonnxruntime.so"], inc = ["public:{cpu}/include"] }
+gpu = { src = ["{gpu}/lib/libonnxruntime.so"], inc = ["public:{gpu}/include"] }

@@ -38,7 +38,7 @@ namespace cppxx {
     template <template <typename> class Pred, typename T>
     constexpr auto tie_if_one(T &v) {
         if constexpr (Pred<std::remove_reference_t<T>>::value) {
-            return std::tuple<T &>(v);
+            return std::tie(v);
         } else {
             return std::tuple<>();
         }
