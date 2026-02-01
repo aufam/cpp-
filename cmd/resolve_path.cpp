@@ -1,4 +1,5 @@
 #include <cpp++/defer.h>
+#include <regex>
 #include <spdlog/spdlog.h>
 #include <fmt/ranges.h>
 #include <filesystem>
@@ -33,9 +34,11 @@ static fs::path get_top_level_path_from_tar(const std::string &tar_file) {
 
     // TODO: what if the tar_file has multiple paths
     if (result.size() > 1)
-        throw std::runtime_error(fmt::format(
-            "Multiple top level paths from {:?} are not supported. The paths are: {}", tar_file, fmt::join(result, " ")
-        ));
+        throw std::runtime_error(
+            fmt::format(
+                "Multiple top level paths from {:?} are not supported. The paths are: {}", tar_file, fmt::join(result, " ")
+            )
+        );
 
     return result.front();
 }
@@ -69,25 +72,31 @@ std::string resolve_path(const std::string &cache, const std::string &path_str) 
 
     if (is_compressed) {
         const fs::path extract_path = extract_dir / get_top_level_path_from_tar(path_str);
-        if (not fs::exists(extract_path)) {
-            fs::create_directories(extract_dir);
-            std::string extract_cmd;
+        const auto     get_tar_flag = [&]() {
             if (extension == ".tar") {
-                extract_cmd = fmt::format("tar -xf \"{}\" -C \"{}\"", path_str, extract_dir.string());
+                return "-xf";
             } else if (extension == ".gz" or extension == ".tgz") {
-                extract_cmd = fmt::format("tar -xzf \"{}\" -C \"{}\"", path_str, extract_dir.string());
+                return "-xzf";
             } else if (extension == ".bz2" or extension == ".tbz2") {
-                extract_cmd = fmt::format("tar -xjf \"{}\" -C \"{}\"", path_str, extract_dir.string());
+                return "-xjf";
             } else if (extension == ".xz") {
-                extract_cmd = fmt::format("tar -xJf \"{}\" -C \"{}\"", path_str, extract_dir.string());
+                return "-xJf";
             } else {
                 throw std::runtime_error(fmt::format("Unsupported archive type {:?}", path_str));
             }
+        };
 
-            spdlog::info("extracting {:?} to {:?}", path_str, extract_dir.string());
-            if (int res = std::system(extract_cmd.c_str()); res)
-                throw std::runtime_error(fmt::format("Failed to extract {:?}, return code: {}", path_str, res));
-        }
+        std::string cmd = fmt::format(
+            "[ -d \"{0}\" ] || "
+            "(mkdir -p \"{1}\" && echo extracting {1:?} to {2:?} && tar {3} \"{1}\" && - C \"{1}\")",
+            extract_path.string(),
+            extract_dir.string(),
+            path_str,
+            get_tar_flag()
+        );
+
+        if (int res = std::system(cmd.c_str()); res)
+            throw std::runtime_error(fmt::format("Failed to extract {:?}, return code: {}", path_str, res));
 
         return resolve_path(cache, extract_path.string());
     }
@@ -97,4 +106,55 @@ std::string resolve_path(const std::string &cache, const std::string &path_str) 
 
     // TODO: check existance of relative path?
     return path_str;
+}
+
+
+std::vector<std::string> expand_path(const std::string &pattern) {
+    std::vector<std::string> result;
+
+    bool        recursive        = pattern.find("**") != std::string::npos;
+    auto        last_slash       = pattern.rfind('/');
+    std::string dir              = last_slash != std::string::npos ? pattern.substr(0, last_slash) : ".";
+    std::string filename_pattern = pattern.substr(last_slash + 1);
+
+    // Translate glob to regex:
+    // - **  -> .*
+    // - *   -> [^/]*   (matches any except slash)
+    // - ?   -> .       (any single character)
+    std::string regex_str;
+    for (size_t i = 0; i < filename_pattern.size(); ++i) {
+        if (filename_pattern[i] == '*') {
+            if (i + 1 < filename_pattern.size() && filename_pattern[i + 1] == '*') {
+                regex_str += ".*";
+                ++i; // skip next '*'
+            } else {
+                regex_str += "[^/]*";
+            }
+        } else if (filename_pattern[i] == '?') {
+            regex_str += '.';
+        } else if (std::strchr(".^$|()[]{}+\\", filename_pattern[i])) {
+            regex_str += '\\';
+            regex_str += filename_pattern[i];
+        } else {
+            regex_str += filename_pattern[i];
+        }
+    }
+
+    std::regex regex_pattern("^" + regex_str + "$");
+
+    if (recursive) {
+        for (const auto &entry : fs::recursive_directory_iterator(dir)) {
+            if (entry.is_regular_file() && std::regex_match(entry.path().filename().string(), regex_pattern)) {
+                result.push_back(entry.path().string());
+            }
+        }
+    } else {
+        for (const auto &entry : fs::directory_iterator(dir)) {
+            if (entry.is_regular_file() && std::regex_match(entry.path().filename().string(), regex_pattern)) {
+                result.push_back(entry.path().string());
+            }
+        }
+    }
+
+    return result;
 }

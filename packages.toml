@@ -5,8 +5,10 @@
 name = "fmt"
 
 [fmt.dependencies]
-fmt = { git = "https://github.com/fmtlib/fmt", tag = "{version}" }
+fmt = { git = "https://github.com/fmtlib/fmt", tag = "{version}", optional = true }
 
+[fmt.targets]
+default = { src = ["{fmt}/src/format.cc", "{fmt}/src/os.cc"], inc = ["public:{fmt}/include"] }
 
 #
 # spdlog
@@ -15,7 +17,7 @@ fmt = { git = "https://github.com/fmtlib/fmt", tag = "{version}" }
 name = "spdlog"
 
 [spdlog.dependencies]
-spdlog = { git = "https://github.com/gabime/spdlog", tag = "v{version}" }
+spdlog = { git = "https://github.com/gabime/spdlog", tag = "v{version}", optional = true }
 
 [spdlog.targets]
 default = { src = ["{spdlog}/src/*"], inc = ["public:{spdlog}/include"], flags = ["public:-DSPDLOG_FMT_EXTERNAL"] }
@@ -39,7 +41,7 @@ json = { path = "https://github.com/nlohmann/json/releases/download/v{version}/j
 name = "yyjson"
 
 [yyjson.dependencies]
-json = { git = "https://github.com/ibireme/yyjson", tag = "{version}" }
+json = { git = "https://github.com/ibireme/yyjson", tag = "{version}", optional = true }
 
 [yyjson.targets]
 default = { src = "{json}/src/yyjson.c", inc = "{json}/src" }
@@ -112,7 +114,7 @@ cli = { git = "https://github.com/CLIUtils/CLI11", tag = "v{version}" }
 name = "httplib"
 
 [httplib.dependencies]
-http = { git = "https://github.com/yhirose/cpp-httplib", tag = "v{version}" }
+http = { git = "https://github.com/yhirose/cpp-httplib", tag = "v{version}", optional = true }
 
 [httplib.targets]
 default = [{ inc = ["public:{http}"], link-flags = ["-lpthread"] }]
@@ -127,7 +129,7 @@ zlib = { flags = ["public:-DCPPHTTPLIB_ZLIB_SUPPORT"], link-flags = ["-lz"] }
 name = "sha256"
 
 [sha256.dependencies]
-sha256 = { git = "https://github.com/LekKit/sha256", branch = "{version}" }
+sha256 = { git = "https://github.com/LekKit/sha256", branch = "{version}", optional = true }
 
 [sha256.targets]
 default = { src = "{sha256}/sha256.c", inc = ["public:{sha256}"] }
@@ -140,7 +142,7 @@ default = { src = "{sha256}/sha256.c", inc = ["public:{sha256}"] }
 name = "gtest"
 
 [gtest.dependencies]
-gtest = { path = "https://github.com/google/googletest/releases/download/v{version}/googletest-{version}.tar.gz" }
+gtest = { path = "https://github.com/google/googletest/releases/download/v{version}/googletest-{version}.tar.gz", optional = true }
 
 [gtest.targets]
 default = { src = ["{gtest}/googletest/src/gtest-all.cc"], inc = ["public:{gtest}/googletest/include", "{gtest}/googletest"] }

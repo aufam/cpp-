@@ -7,8 +7,6 @@
 #include <variant>
 #include <vector>
 
-struct Config;
-
 struct Package {
     cppxx::Tag<std::string> name    = "toml,json:`name`";
     cppxx::Tag<std::string> version = "toml,json:`version,skipmissing,omitempty`";
@@ -44,7 +42,7 @@ struct CompileCommand {
     cppxx::Tag<std::string> output    = "json:`output`";
 };
 
-struct Config {
+struct Context {
     using Dep = std::variant<std::string, Dependency>;
 
     cppxx::Tag<Package>                                      package      = "toml,json:`package`";
@@ -53,9 +51,10 @@ struct Config {
     cppxx::Tag<std::unordered_map<std::string, Target>>      targets      = "toml,json:`targets,skipmissing,omitempty`";
     cppxx::Tag<std::optional<Target>>                        lib          = "toml,json:`lib,skipmissing,omitempty`";
     cppxx::Tag<std::vector<Target>>                          bin          = "toml,json:`bin,skipmissing,omitempty`";
-    cppxx::Tag<std::unordered_map<std::string, Config>>      packages     = "toml,json:`packages,skipmissing,omitempty`";
+    cppxx::Tag<std::unordered_map<std::string, Context>>     packages     = "toml,json:`packages,skipmissing,omitempty`";
 
-    cppxx::Tag<std::string> cache = "opt:`cache,skipmissing,env=CPPXX_CACHE`";
+    cppxx::Tag<std::string> cache               = "opt:`cache,env=CPPXX_CACHE`";
+    cppxx::Tag<bool>        no_default_features = "opt:`no-default-features,help=Disable default features`";
 
     cppxx::Tag<std::vector<CompileCommand>> compile_commands = "json:`compile_commands`";
     cppxx::Tag<std::vector<std::string>>    public_inc       = "";
@@ -70,9 +69,14 @@ private:
     Dependency &convert_dep(Dep &dep);
 
     void resolve_dep(const std::string &name, Dep &dep);
-    void apply_version_to_packages(const std::string &version, Config &dep_package);
+    void resolve_target(const std::string &name, Target &target);
+    void apply_version_to_packages(const std::string &version, Context &dep_package);
 };
 
 
 std::string resolve_path(const std::string &cache, const std::string &path);
 std::string git_clone(const std::string &cache, const std::string &git, const std::string &tag);
+
+std::vector<std::string> expand_path(const std::string &pattern);
+
+void string_replace(std::string &str, const std::string &key, const std::string &value);

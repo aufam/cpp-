@@ -1,4 +1,4 @@
-#include "config.h"
+#include "context.h"
 #include <cpp++/defer.h>
 #include <spdlog/spdlog.h>
 #include <fmt/ranges.h>
@@ -6,7 +6,7 @@
 
 namespace fs = std::filesystem;
 
-Dependency &Config::convert_dep(Dep &dep) {
+Dependency &Context::convert_dep(Dep &dep) {
     if (auto *version = std::get_if<std::string>(&dep)) {
         Dependency d{};
         d.version() = *version;
@@ -16,7 +16,7 @@ Dependency &Config::convert_dep(Dep &dep) {
     return std::get<Dependency>(dep);
 }
 
-void Config::resolve_dep(const std::string &name, Config::Dep &dep) {
+void Context::resolve_dep(const std::string &name, Context::Dep &dep) {
     auto &d = convert_dep(dep);
     if (d.optional()) {
         return; // resolve later
@@ -71,6 +71,16 @@ void Config::resolve_dep(const std::string &name, Config::Dep &dep) {
         return;
     }
 
+    {
+        std::string  command = fmt::format("echo \"{}\"", d.path());
+        auto         pipe    = popen(command.c_str(), "r");
+        cppxx::defer _       = [&]() { pclose(pipe); };
+
+        char buffer[4096];
+        d.path() = fgets(buffer, sizeof(buffer), pipe);
+        d.path().pop_back();
+    }
+
     std::string include;
     if (auto inc = fs::path(d.path()) / "include"; fs::is_directory(inc)) {
         public_inc().push_back(inc.string());
@@ -115,7 +125,7 @@ void Config::resolve_dep(const std::string &name, Config::Dep &dep) {
     }
 }
 
-void Config::apply_version_to_packages(const std::string &version, Config &dep_package) {
+void Context::apply_version_to_packages(const std::string &version, Context &dep_package) {
     for (auto &[_, dep] : dep_package.dependencies()) {
         auto &d     = convert_dep(dep);
         d.version() = fmt::format(fmt::runtime(d.version()), fmt::arg("version", version));
