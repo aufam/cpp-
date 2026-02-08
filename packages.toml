@@ -5,10 +5,10 @@
 name = "fmt"
 
 [fmt.dependencies]
-fmt = { git = "https://github.com/fmtlib/fmt", tag = "{version}", optional = true }
+default = { git = "https://github.com/fmtlib/fmt", tag = "{version}" }
 
 [fmt.targets]
-default = { src = ["{fmt}/src/format.cc", "{fmt}/src/os.cc"], inc = ["public:{fmt}/include"] }
+default = { src = ["{default}/src/format.cc", "{default}/src/os.cc"], inc = ["public:{default}/include"] }
 
 #
 # spdlog
@@ -17,11 +17,11 @@ default = { src = ["{fmt}/src/format.cc", "{fmt}/src/os.cc"], inc = ["public:{fm
 name = "spdlog"
 
 [spdlog.dependencies]
-spdlog = { git = "https://github.com/gabime/spdlog", tag = "v{version}", optional = true }
+default = { git = "https://github.com/gabime/spdlog", tag = "v{version}" }
 
 [spdlog.targets]
-default = { src = ["{spdlog}/src/*"], inc = ["public:{spdlog}/include"], flags = ["public:-DSPDLOG_FMT_EXTERNAL"] }
-fmt = { src = ["{spdlog}/src/*"], inc = ["public:{spdlog}/include"] }
+default = { src = ["{default}/src/*"], inc = ["public:{default}/include"], flags = ["public:-DSPDLOG_FMT_EXTERNAL"] }
+fmt = { src = ["{default}/src/*"], inc = ["public:{default}/include"] }
 
 
 #
@@ -31,7 +31,7 @@ fmt = { src = ["{spdlog}/src/*"], inc = ["public:{spdlog}/include"] }
 name = "nlohmann_json"
 
 [nlohmann_json.dependencies]
-json = { path = "https://github.com/nlohmann/json/releases/download/v{version}/json.tar.xz" }
+default = { path = "https://github.com/nlohmann/json/releases/download/v{version}/json.tar.xz" }
 
 
 #
@@ -41,10 +41,10 @@ json = { path = "https://github.com/nlohmann/json/releases/download/v{version}/j
 name = "yyjson"
 
 [yyjson.dependencies]
-json = { git = "https://github.com/ibireme/yyjson", tag = "{version}", optional = true }
+default = { git = "https://github.com/ibireme/yyjson", tag = "{version}" }
 
 [yyjson.targets]
-default = { src = "{json}/src/yyjson.c", inc = "{json}/src" }
+default = { src = "{default}/src/yyjson.c", inc = "{default}/src" }
 
 
 #
@@ -54,7 +54,7 @@ default = { src = "{json}/src/yyjson.c", inc = "{json}/src" }
 name = "rapidjson"
 
 [rapidjson.dependencies]
-json = { git = "https://github.com/Tencent/rapidjson", tag = "v{version}" }
+default = { git = "https://github.com/Tencent/rapidjson", tag = "v{version}" }
 
 
 #
@@ -64,7 +64,7 @@ json = { git = "https://github.com/Tencent/rapidjson", tag = "v{version}" }
 name = "'toml++'"
 
 ['toml++'.dependencies]
-json = { git = "https://github.com/marzer/tomlplusplus", tag = "v{version}" }
+default = { git = "https://github.com/marzer/tomlplusplus", tag = "v{version}" }
 
 
 #
@@ -74,7 +74,7 @@ json = { git = "https://github.com/marzer/tomlplusplus", tag = "v{version}" }
 name = "yaml-cpp"
 
 [yaml-cpp.dependencies]
-json = { git = "https://github.com/jbeder/yaml-cpp", tag = "yaml-cpp-{version}" }
+default = { git = "https://github.com/jbeder/yaml-cpp", tag = "yaml-cpp-{version}" }
 
 
 #
@@ -84,7 +84,7 @@ json = { git = "https://github.com/jbeder/yaml-cpp", tag = "yaml-cpp-{version}" 
 name = "pfr"
 
 [pfr.dependencies]
-pfr = { git = "https://github.com/boostorg/pfr", tag = "boost-{version}" }
+default = { git = "https://github.com/boostorg/pfr", tag = "boost-{version}" }
 
 
 #
@@ -94,7 +94,7 @@ pfr = { git = "https://github.com/boostorg/pfr", tag = "boost-{version}" }
 name = "magic_enum"
 
 [magic_enum.dependencies]
-magic_enum = { git = "https://github.com/Neargye/magic_enum", tag = "v{version}" }
+default = { git = "https://github.com/Neargye/magic_enum", tag = "v{version}" }
 
 
 #
@@ -104,7 +104,7 @@ magic_enum = { git = "https://github.com/Neargye/magic_enum", tag = "v{version}"
 name = "CLI11"
 
 [CLI11.dependencies]
-cli = { git = "https://github.com/CLIUtils/CLI11", tag = "v{version}" }
+default = { git = "https://github.com/CLIUtils/CLI11", tag = "v{version}" }
 
 
 #
@@ -114,10 +114,10 @@ cli = { git = "https://github.com/CLIUtils/CLI11", tag = "v{version}" }
 name = "httplib"
 
 [httplib.dependencies]
-http = { git = "https://github.com/yhirose/cpp-httplib", tag = "v{version}", optional = true }
+default = { git = "https://github.com/yhirose/cpp-httplib", tag = "v{version}" }
 
 [httplib.targets]
-default = [{ inc = ["public:{http}"], link-flags = ["-lpthread"] }]
+default = [{ inc = ["public:{default}"], link-flags = ["-lpthread"] }]
 ssl = { flags = ["public:-DCPPHTTPLIB_OPENSSL_SUPPORT"], link-flags = ["-lssl", "-lcrypto"] }
 zlib = { flags = ["public:-DCPPHTTPLIB_ZLIB_SUPPORT"], link-flags = ["-lz"] }
 
@@ -129,10 +129,10 @@ zlib = { flags = ["public:-DCPPHTTPLIB_ZLIB_SUPPORT"], link-flags = ["-lz"] }
 name = "sha256"
 
 [sha256.dependencies]
-sha256 = { git = "https://github.com/LekKit/sha256", branch = "{version}", optional = true }
+default = { git = "https://github.com/LekKit/sha256", branch = "{version}" }
 
 [sha256.targets]
-default = { src = "{sha256}/sha256.c", inc = ["public:{sha256}"] }
+default = { src = "{default}/sha256.c", inc = ["public:{default}"] }
 
 
 #
@@ -142,11 +142,15 @@ default = { src = "{sha256}/sha256.c", inc = ["public:{sha256}"] }
 name = "gtest"
 
 [gtest.dependencies]
-gtest = { path = "https://github.com/google/googletest/releases/download/v{version}/googletest-{version}.tar.gz", optional = true }
+default = { path = "https://github.com/google/googletest/releases/download/v{version}/googletest-{version}.tar.gz" }
 
-[gtest.targets]
-default = { src = ["{gtest}/googletest/src/gtest-all.cc"], inc = ["public:{gtest}/googletest/include", "{gtest}/googletest"] }
-gtest-main = { src = ["{gtest}/googletest/src/gtest-all.cc", "{gtest}/googletest/src/gtest_main.cc"], inc = ["public:{gtest}/googletest/include", "{gtest}/googletest"] }
+[gtest.targets.default]
+src = ["{default}/googletest/src/gtest-all.cc"]
+inc = ["public:{default}/googletest/include", "{default}/googletest"]
+
+[gtest.targets.'gtest-main']
+src = ["{default}/googletest/src/gtest-all.cc", "{default}/googletest/src/gtest_main.cc"]
+inc = ["public:{default}/googletest/include", "{default}/googletest"]
 
 
 #
@@ -156,9 +160,91 @@ gtest-main = { src = ["{gtest}/googletest/src/gtest-all.cc", "{gtest}/googletest
 name = "onnx"
 
 [onnx.dependencies]
-cpu = { path = "https://github.com/microsoft/onnxruntime/releases/download/v{version}/onnxruntime-linux-x64-{version}.tgz", optional = true }
+default = { path = "https://github.com/microsoft/onnxruntime/releases/download/v{version}/onnxruntime-linux-x64-{version}.tgz" }
 gpu = { path = "https://github.com/microsoft/onnxruntime/releases/download/v{version}/onnxruntime-linux-x64-gpu-{version}.tgz", optional = true }
 
 [onnx.targets]
-default = { src = ["{cpu}/lib/libonnxruntime.so"], inc = ["public:{cpu}/include"] }
-gpu = { src = ["{gpu}/lib/libonnxruntime.so"], inc = ["public:{gpu}/include"] }
+default = { link-flags = ["{default}/lib/libonnxruntime.so"], inc = ["public:{default}/include"] }
+gpu = { link-flags = ["{gpu}/lib/libonnxruntime.so"], inc = ["public:{gpu}/include"] }
+
+
+#
+# catch2
+#
+[catch2.package]
+name = "catch2"
+edition = 14
+
+[catch2.dependencies]
+default = { git = "https://github.com/catchorg/Catch2", tag = "v{version}"}
+
+[catch2.targets.default]
+src = [
+    "{default}/src/catch2/*.cpp",
+    "{default}/src/catch2/benchmark/*.cpp",
+    "{default}/src/catch2/benchmark/detail/*.cpp",
+    "{default}/src/catch2/generators/*.cpp",
+    "{default}/src/catch2/interfaces/*.cpp",
+    "{default}/src/catch2/internal/*.cpp",
+    "{default}/src/catch2/matchers/*.cpp",
+    "{default}/src/catch2/matchers/internal/*.cpp",
+    "{default}/src/catch2/reporters/*.cpp",
+]
+inc = ["public:{default}/src"]
+
+
+#
+# ftxui
+#
+[ftxui.package]
+name = "ftxui"
+
+[ftxui.dependencies]
+default = { path = "http://github.com/ArthurSonzogni/FTXUI", tag = "v{version}" }
+
+[ftxui.targets]
+screen = { src = ["{default}/src/screen/*.cpp"], inc = ["public:{default}/include"] }
+dom = { src = ["{default}/src/dom/*.cpp"], inc = ["public:{default}/include"] }
+component = { src = ["{default}/src/component/*.cpp"], inc = ["public:{default}/include"] }
+
+[ftxui.features]
+default = ["screen", "dom", "component"]
+
+
+#
+# async_simple
+#
+[async_simple.package]
+name = "async_simple"
+edition = 20
+
+[async_simple.dependencies]
+default = { path = "https://github.com/alibaba/async_simple", tag = "v{version}"}
+
+[async_simple.targets]
+default = { inc = ["public:{default}"] }
+
+
+#
+# cpptrace
+#
+[cpptrace.package]
+name = "cpptrace"
+
+[cpptrace.dependencies]
+default = { path = "https://github.com/jeremy-rifkin/cpptrace", tag = "v{version}" }
+
+[cpptrace.targets.default]
+src = [
+    "{default}/src/*.cpp",
+    "{default}/src/binary/*.cpp",
+    "{default}/src/demangle/*.cpp",
+    "{default}/src/jit/*.cpp",
+    "{default}/src/platform/*.cpp",
+    "{default}/src/snippets/*.cpp",
+    "{default}/src/symbols/*.cpp",
+    "{default}/src/unwind/*.cpp",
+    "{default}/src/utils/*.cpp",
+    "{default}/src/utils/io/*.cpp",
+]
+inc = ["public:{default}/include"]
