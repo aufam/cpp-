@@ -4,7 +4,9 @@
 #include <cpp++/cli/cli11.h>
 #include <cpp++/defer.h>
 #include <cpp++/fmt.h>
-#include "config.h"
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
+#include "context.h"
 
 template <typename T>
 using Tag = cppxx::Tag<T>;
@@ -29,13 +31,21 @@ struct Data {
 };
 
 int main(int argc, char **argv) {
-    Config cfg;
-    cppxx::toml::marzer_toml::parse_from_file("./cpp++.toml", cfg);
+    {
+        auto sink = std::make_shared<spdlog::sinks::stderr_color_sink_mt>();
+        spdlog::set_default_logger(std::make_shared<spdlog::logger>("cpp++", std::move(sink)));
+        spdlog::set_level(spdlog::level::trace);
+    }
 
-    cfg.cache() = "/home/aufa/.cache/cpp++";
-    cfg.resolve();
+    Context ctx;
+    cppxx::toml::marzer_toml::parse_from_file("./packages.toml", ctx.packages());
+    cppxx::toml::marzer_toml::parse_from_file("./cpp++.toml", ctx);
 
-    // std::cout << cppxx::json::yy_json::dump(cfg, YYJSON_WRITE_PRETTY_TWO_SPACES) << std::endl;
+    if (ctx.cache().empty())
+        ctx.cache() = std::getenv("HOME") + std::string("/.cache/cpp++");
+    ctx.resolve_feats();
+
+    std::cout << cppxx::json::yy_json::dump(ctx, YYJSON_WRITE_PRETTY_TWO_SPACES) << '\n';
     return 0;
 
     Data data;

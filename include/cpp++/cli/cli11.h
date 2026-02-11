@@ -35,11 +35,19 @@ namespace cppxx::cli::cli11 {
     template <typename T>
     std::enable_if_t<std::is_default_constructible_v<T>, T> parse(const std::string &app_desc, int argc, char **argv);
 
+    template <typename T>
+    std::vector<std::string> parse_with_subcommands(const std::string &app_desc, int argc, char **argv, T &v);
+
+    template <typename T>
+    std::enable_if_t<std::is_default_constructible_v<T>, std::pair<T, std::vector<std::string>>>
+    parse_with_subcommands(const std::string &app_desc, int argc, char **argv);
 } // namespace cppxx::cli::cli11
 
 namespace cppxx::cli::cli11::detail {
-    inline std::string convert_flag_format(std::string_view input, bool positional) {
-        if (input.size() <= 1 || input[1] != '|')
+    inline std::string convert_flag_format(std::string_view input, bool positional, bool subcommand) {
+        if (subcommand)
+            return std::string(input);
+        else if (input.size() <= 1 || input[1] != '|')
             return (positional ? "" : "--") + std::string(input);
         else if (positional)
             return std::string(input.substr(2));
@@ -55,6 +63,7 @@ namespace cppxx::cli::cli11::detail {
         CLI::App   &app;
         std::string option_name;
         std::string help_string;
+        std::string env;
         bool        positional = false;
         bool        required   = false;
     };
@@ -63,7 +72,18 @@ namespace cppxx::cli::cli11::detail {
     class DeserializeDispatcherFor : public DeserializeDispatcher {
         using DeserializeDispatcher::DeserializeDispatcher;
 
+    public:
         virtual void into(T &v) const = 0;
+
+        DeserializeDispatcherFor<T> &configure(const serde::TagInfo &ti) {
+            option_name =
+                cppxx::cli::cli11::detail::convert_flag_format(ti.key, ti.positional, is_tuple_v<T> || std::is_aggregate_v<T>);
+            help_string = std::string(ti.help);
+            positional  = ti.positional;
+            required    = !ti.skipmissing;
+            env         = std::string(ti.env);
+            return *this;
+        }
     };
 } // namespace cppxx::cli::cli11::detail
 
@@ -71,9 +91,10 @@ namespace cppxx::cli::cli11::detail {
 namespace cppxx::serde {
     template <>
     struct Parse<CLI::App, std::pair<int, char **>> {
-        std::string    app_desc;
-        int            argc;
-        mutable char **argv;
+        std::string               app_desc;
+        int                       argc;
+        mutable char            **argv;
+        std::vector<std::string> *parsed_subcommands = nullptr;
 
         template <typename... Ts>
         void into(std::tuple<Ts...> &tpl) const {
@@ -92,11 +113,7 @@ namespace cppxx::serde {
                         return;
 
                     Deserialize<CLI::App, T> d(app);
-                    d.option_name = cppxx::cli::cli11::detail::convert_flag_format(ti.key, ti.positional);
-                    d.help_string = std::string(ti.help);
-                    d.positional  = ti.positional;
-                    d.required    = !ti.skipmissing;
-                    d.into(val);
+                    d.configure(ti).into(val);
                 }
             });
 
@@ -105,6 +122,11 @@ namespace cppxx::serde {
             } catch (const CLI::ParseError &e) {
                 ::exit(app.exit(e));
             };
+
+            if (parsed_subcommands)
+                for (auto *sub : app.get_subcommands())
+                    // if (sub->parsed())
+                    parsed_subcommands->push_back(sub->get_name());
         }
 
 #ifdef BOOST_PFR_HPP
@@ -135,6 +157,8 @@ namespace cppxx::serde {
 
         void into(T &v) const override {
             CLI::Option *opt = this->app.add_option(this->option_name, v, this->help_string);
+            if (!this->env.empty())
+                opt->envname(this->env);
             if (this->required)
                 opt->required(this->required);
             else
@@ -152,6 +176,8 @@ namespace cppxx::serde {
 
         void into(std::vector<T> &v) const override {
             CLI::Option *opt = this->app.add_option(this->option_name, v, this->help_string);
+            if (!this->env.empty())
+                opt->envname(this->env);
             if (!v.empty())
                 opt->default_val(v);
         }
@@ -167,6 +193,8 @@ namespace cppxx::serde {
 
         void into(std::optional<T> &v) const override {
             CLI::Option *opt = this->app.template add_option<std::optional<T>, T>(this->option_name, v, this->help_string);
+            if (!this->env.empty())
+                opt->envname(this->env);
             if (v.has_value())
                 opt->default_val(*v);
         }
@@ -203,6 +231,8 @@ namespace cppxx::serde {
                 this->help_string
             );
 
+            if (!this->env.empty())
+                opt->envname(this->env);
             if (this->required)
                 opt->required(this->required);
             else
@@ -228,11 +258,7 @@ namespace cppxx::serde {
                         return;
 
                     Deserialize<CLI::App, T> d(*sub);
-                    d.option_name = cppxx::cli::cli11::detail::convert_flag_format(ti.key, ti.positional);
-                    d.help_string = std::string(ti.help);
-                    d.positional  = ti.positional;
-                    d.required    = !ti.skipmissing;
-                    d.into(val);
+                    d.configure(ti).into(val);
                 }
             });
         }
@@ -260,11 +286,7 @@ namespace cppxx::serde {
                         return;
 
                     Deserialize<CLI::App, T> d(*sub);
-                    d.option_name = cppxx::cli::cli11::detail::convert_flag_format(ti.key, ti.positional);
-                    d.help_string = std::string(ti.help);
-                    d.positional  = ti.positional;
-                    d.required    = !ti.skipmissing;
-                    d.into(val);
+                    d.configure(ti).into(val);
                 }
             });
         }
@@ -280,6 +302,8 @@ namespace cppxx::serde {
 
         void into(S &v) const override {
             CLI::Option *opt = generic_into(v, this->app, this->option_name, this->help_string);
+            if (!this->env.empty())
+                opt->envname(this->env);
             if (this->required)
                 opt->required(this->required);
             else
@@ -293,14 +317,6 @@ namespace cppxx::serde {
                 option_name,
                 [&v](const std::string &str) {
                     auto e = magic_enum::enum_cast<S>(str);
-                    if (!e.has_value()) {
-                        std::string what = "invalid value `" + str + "`, expected one of {";
-                        for (auto &name : magic_enum::enum_names<S>()) {
-                            what += std::string(name) + ",";
-                        }
-                        what += "}";
-                        throw error(std::move(what));
-                    }
                     if constexpr (m == Method::Emplace)
                         v.emplace(*e);
                     else if constexpr (m == Method::EmplaceBack)
@@ -331,6 +347,8 @@ namespace cppxx::serde {
                 v, this->app, this->option_name, this->help_string
             );
 
+            if (!this->env.empty())
+                opt->envname(this->env);
             if (v.has_value())
                 opt->default_str(std::string(magic_enum::enum_name(*v)));
         }
@@ -374,6 +392,22 @@ namespace cppxx::cli::cli11 {
         T v;
         Parse{app_desc, argc, argv}.into(v);
         return v;
+    }
+
+    template <typename T>
+    std::vector<std::string> parse_with_subcommands(const std::string &app_desc, int argc, char **argv, T &v) {
+        std::vector<std::string> parsed_subcommands;
+        Parse{app_desc, argc, argv, &parsed_subcommands}.into(v);
+        return parsed_subcommands;
+    }
+
+    template <typename T>
+    std::enable_if_t<std::is_default_constructible_v<T>, std::pair<T, std::vector<std::string>>>
+    parse_with_subcommands(const std::string &app_desc, int argc, char **argv) {
+        T                        v;
+        std::vector<std::string> parsed_subcommands;
+        Parse{app_desc, argc, argv, &parsed_subcommands}.into(v);
+        return std::make_pair(std::move(v), std::move(parsed_subcommands));
     }
 } // namespace cppxx::cli::cli11
 #endif

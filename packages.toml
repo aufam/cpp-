@@ -44,7 +44,7 @@ name = "yyjson"
 default = { git = "https://github.com/ibireme/yyjson", tag = "{version}" }
 
 [yyjson.targets]
-default = { src = "{default}/src/yyjson.c", inc = "{default}/src" }
+default = { src = ["{default}/src/yyjson.c"], inc = ["{default}/src"] }
 
 
 #
@@ -61,7 +61,7 @@ default = { git = "https://github.com/Tencent/rapidjson", tag = "v{version}" }
 # toml++
 #
 ['toml++'.package]
-name = "'toml++'"
+name = "toml++"
 
 ['toml++'.dependencies]
 default = { git = "https://github.com/marzer/tomlplusplus", tag = "v{version}" }
@@ -117,7 +117,7 @@ name = "httplib"
 default = { git = "https://github.com/yhirose/cpp-httplib", tag = "v{version}" }
 
 [httplib.targets]
-default = [{ inc = ["public:{default}"], link-flags = ["-lpthread"] }]
+default = { inc = ["public:{default}"], link-flags = ["-lpthread"] }
 ssl = { flags = ["public:-DCPPHTTPLIB_OPENSSL_SUPPORT"], link-flags = ["-lssl", "-lcrypto"] }
 zlib = { flags = ["public:-DCPPHTTPLIB_ZLIB_SUPPORT"], link-flags = ["-lz"] }
 
@@ -132,7 +132,7 @@ name = "sha256"
 default = { git = "https://github.com/LekKit/sha256", branch = "{version}" }
 
 [sha256.targets]
-default = { src = "{default}/sha256.c", inc = ["public:{default}"] }
+default = { src = ["{default}/sha256.c"], inc = ["public:{default}"] }
 
 
 #
@@ -176,7 +176,7 @@ name = "catch2"
 edition = 14
 
 [catch2.dependencies]
-default = { git = "https://github.com/catchorg/Catch2", tag = "v{version}"}
+default = { git = "https://github.com/catchorg/Catch2", tag = "v{version}" }
 
 [catch2.targets.default]
 src = [
@@ -200,7 +200,7 @@ inc = ["public:{default}/src"]
 name = "ftxui"
 
 [ftxui.dependencies]
-default = { path = "http://github.com/ArthurSonzogni/FTXUI", tag = "v{version}" }
+default = { git = "http://github.com/ArthurSonzogni/FTXUI", tag = "v{version}" }
 
 [ftxui.targets]
 screen = { src = ["{default}/src/screen/*.cpp"], inc = ["public:{default}/include"] }
@@ -219,7 +219,7 @@ name = "async_simple"
 edition = 20
 
 [async_simple.dependencies]
-default = { path = "https://github.com/alibaba/async_simple", tag = "v{version}"}
+default = { git = "https://github.com/alibaba/async_simple", tag = "v{version}"}
 
 [async_simple.targets]
 default = { inc = ["public:{default}"] }
@@ -232,7 +232,7 @@ default = { inc = ["public:{default}"] }
 name = "cpptrace"
 
 [cpptrace.dependencies]
-default = { path = "https://github.com/jeremy-rifkin/cpptrace", tag = "v{version}" }
+default = { git = "https://github.com/jeremy-rifkin/cpptrace", tag = "v{version}" }
 
 [cpptrace.targets.default]
 src = [

@@ -6,14 +6,16 @@ project(cppxx
     LANGUAGES   C CXX
 )
 
-option(CPPXX_BUILD_CMD    "Build the executable tool"                   OFF)
-option(CPPXX_BUILD_TESTS  "Build unit tests"                            OFF)
-option(CPPXX_REQUIREMENTS "Only install the requirements for the cmd"   OFF)
+option(CPPXX_BUILD_CMD        "Build the executable tool"                   OFF)
+option(CPPXX_BUILD_TESTS      "Build unit tests"                            OFF)
+option(CPPXX_BUILD_EXAMPLES   "Build unit tests"                            OFF)
+option(CPPXX_REQUIREMENTS     "Only populate the external targets"          OFF)
 
-message(STATUS "CPPXX_VERSION       : ${cppxx_VERSION}")
-message(STATUS "CPPXX_BUILD_CMD     : ${CPPXX_BUILD_CMD}")
-message(STATUS "CPPXX_BUILD_TESTS   : ${CPPXX_BUILD_TESTS}")
-message(STATUS "CPPXX_REQUIREMENTS  : ${CPPXX_REQUIREMENTS}")
+message(STATUS "CPPXX_VERSION        : ${cppxx_VERSION}")
+message(STATUS "CPPXX_BUILD_CMD      : ${CPPXX_BUILD_CMD}")
+message(STATUS "CPPXX_BUILD_TESTS    : ${CPPXX_BUILD_TESTS}")
+message(STATUS "CPPXX_BUILD_EXAMPLES : ${CPPXX_BUILD_EXAMPLES}")
+message(STATUS "CPPXX_REQUIREMENTS   : ${CPPXX_REQUIREMENTS}")
 
 
 # core interface
@@ -25,7 +27,7 @@ target_include_directories(cppxx INTERFACE
     $<INSTALL_INTERFACE:include>
 )
 
-if (NOT CPPXX_BUILD_CMD AND NOT CPPXX_BUILD_TESTS AND NOT CPPXX_REQUIREMENTS)
+if (NOT CPPXX_BUILD_CMD AND NOT CPPXX_BUILD_TESTS AND NOT CPPXX_BUILD_EXAMPLES AND NOT CPPXX_REQUIREMENTS)
     return()
 endif()
 
@@ -69,6 +71,7 @@ CPMAddPackage(
     OPTIONS         "YYJSON_INSTALL OFF"
 )
 
+## rapidjson
 CPMAddPackage(
     NAME            rapidjson
     GIT_REPOSITORY  "https://github.com/Tencent/rapidjson"
@@ -85,7 +88,7 @@ CPMAddPackage(
     GIT_TAG         v3.4.0
 )
 
-## Boost's reflection lib
+## Boost's struct reflection
 CPMAddPackage(
     NAME            pfr
     GIT_REPOSITORY  "https://github.com/boostorg/pfr"
@@ -94,7 +97,7 @@ CPMAddPackage(
     COMPONENTS      Boost::pfr
 )
 
-## Reflection for enum
+## Enum reflection
 CPMAddPackage(
     NAME            magic_enum
     GIT_REPOSITORY  "https://github.com/Neargye/magic_enum"
@@ -164,6 +167,7 @@ target_link_libraries(cppxx_private INTERFACE
     cxxopts
     CLI11
     sha256
+    protobuf::libprotobuf
 )
 
 target_compile_options(cppxx_private INTERFACE
@@ -194,7 +198,6 @@ if (CPPXX_BUILD_CMD)
     target_link_libraries(cmd PRIVATE
         cppxx
         cppxx_private
-        protobuf::libprotobuf
     )
 
     target_link_options(cmd PRIVATE
@@ -215,9 +218,80 @@ if (CPPXX_BUILD_TESTS)
         gtest_main
         httplib
         SQLite::SQLite3
-        protobuf::libprotobuf
     )
 
 	enable_testing()
 	add_test(NAME test_all COMMAND test_all)
+endif()
+
+
+# examples
+if (CPPXX_BUILD_EXAMPLES)
+    file(GLOB_RECURSE SRCS examples/0-basic/*)
+    add_executable(example_basic ${SRCS})
+    target_compile_features(example_basic PRIVATE cxx_std_17)
+
+    target_link_libraries(example_basic PRIVATE
+        cppxx
+        fmt
+        yyjson
+        tomlplusplus::tomlplusplus
+        CLI11
+    )
+
+    file(GLOB_RECURSE SRCS examples/1-struct/*)
+    add_executable(example_struct ${SRCS})
+    target_compile_features(example_struct PRIVATE cxx_std_17)
+
+    target_link_libraries(example_struct PRIVATE
+        cppxx
+        fmt
+        yyjson
+        tomlplusplus::tomlplusplus
+        Boost::pfr
+    )
+
+    file(GLOB_RECURSE SRCS examples/2-enum/*)
+    add_executable(example_enum ${SRCS})
+    target_compile_features(example_enum PRIVATE cxx_std_17)
+
+    target_link_libraries(example_enum PRIVATE
+        cppxx
+        fmt
+        tomlplusplus::tomlplusplus
+        magic_enum
+    )
+
+    file(GLOB_RECURSE SRCS examples/3-cli/*)
+    add_executable(example_cli ${SRCS})
+    target_compile_features(example_cli PRIVATE cxx_std_17)
+
+    target_link_libraries(example_cli PRIVATE
+        cppxx
+        fmt
+        Boost::pfr
+        CLI11
+        magic_enum
+    )
+
+    file(GLOB_RECURSE SRCS examples/4-sql/*)
+    add_executable(example_sql ${SRCS})
+    target_compile_features(example_sql PRIVATE cxx_std_17)
+
+    target_link_libraries(example_sql PRIVATE
+        cppxx
+        fmt
+        Boost::pfr
+    )
+
+    file(GLOB_RECURSE SRCS examples/5-protobuf/*)
+    add_executable(example_protobuf ${SRCS})
+    target_compile_features(example_protobuf PRIVATE cxx_std_17)
+
+    target_link_libraries(example_protobuf PRIVATE
+        cppxx
+        fmt
+        Boost::pfr
+        protobuf::libprotobuf
+    )
 endif()

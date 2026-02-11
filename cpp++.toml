@@ -3,7 +3,5 @@ name = "cpp++"
 version = "0.1.0"
 
 [dependencies]
-fmt = { git = "https://github.com/fmtlib/fmt", tag = "11.2.0", optional = true }
-
-[targets]
-default = { src = ["{fmt}/src/format.cc", "{fmt}/src/os.cc"], inc = ["public:{spdlog}/include"] }
+fmt = "11.2.0"
+nlohmann_json = "3.12.0"

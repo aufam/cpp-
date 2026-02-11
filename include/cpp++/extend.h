@@ -110,6 +110,16 @@ namespace cppxx {
     auto flatten(std::tuple<Ts &...> tpl) {
         return std::apply([](auto &...items) { return std::tuple_cat(flatten_one(items)...); }, tpl);
     }
+
+    template <typename... Ts>
+    auto flatten(const std::tuple<Ts...> &tpl) {
+        return std::apply([](auto &...items) { return std::tuple_cat(flatten_one(items)...); }, tpl);
+    }
+
+    template <typename... Ts>
+    auto flatten(std::tuple<Ts...> &tpl) {
+        return std::apply([](auto &...items) { return std::tuple_cat(flatten_one(items)...); }, tpl);
+    }
 } // namespace cppxx
 
 #endif

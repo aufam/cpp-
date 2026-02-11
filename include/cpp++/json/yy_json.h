@@ -10,6 +10,7 @@
 #include <cpp++/time.h>
 #include <array>
 #include <variant>
+#include <vector>
 #include <tuple>
 #include <unordered_map>
 
@@ -69,13 +70,20 @@ namespace cppxx::serde {
         template <typename T>
         void into(T &val, bool src_is_path = false) const {
             yyjson_read_err err;
-            yyjson_doc     *doc = src_is_path ? yyjson_read_file(const_cast<char *>(src.c_str()), flag, nullptr, &err)
-                                              : yyjson_read_opts(const_cast<char *>(src.c_str()), src.size(), flag, nullptr, &err);
-            if (!doc)
-                throw error(err.msg);
+            try {
+                yyjson_doc *doc = src_is_path
+                                      ? yyjson_read_file(const_cast<char *>(src.c_str()), flag, nullptr, &err)
+                                      : yyjson_read_opts(const_cast<char *>(src.c_str()), src.size(), flag, nullptr, &err);
+                if (!doc)
+                    throw error(err.msg);
 
-            auto _ = defer([&] { yyjson_doc_free(doc); });
-            Deserialize<yyjson_val, T>{yyjson_doc_get_root(doc)}.into(val);
+                auto _ = defer([&] { yyjson_doc_free(doc); });
+                Deserialize<yyjson_val, T>{yyjson_doc_get_root(doc)}.into(val);
+            } catch (error &err) {
+                if (src_is_path)
+                    err.path = src;
+                throw;
+            }
         }
     };
 

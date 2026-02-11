@@ -55,14 +55,14 @@ std::string git_clone(const std::string &cache, const std::string &git, const st
     const std::string host = extract_host_and_path(url);
     spdlog::info("host = {}", host);
 
-    fs::path result_path = fs::path(cache) / host / tag;
+    fs::path result_path = fs::path(cache) / "src" / (host + "-" + tag);
     spdlog::info("result_path = {}", result_path.string());
 
     const std::string cmd = fmt::format(
         "[ -d \"{0}\" ] || "
-        "(echo cloning \"{1}\" && git -c advice.detachedHead=false clone --quiet --depth 1 {2}\"{3}\" \"{0}\")",
+        "(echo cloning \"{1}\" >&2 && git -c advice.detachedHead=false clone --quiet --depth 1 {2}\"{3}\" \"{0}\")",
         result_path.string(),
-        tag.empty() ? host : tag + "@" + tag,
+        tag.empty() ? host : host + "@" + tag,
         tag.empty() ? "" : "--branch \"" + tag + "\" ",
         url
     );

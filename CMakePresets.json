@@ -12,6 +12,7 @@
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CPM_USE_LOCAL_PACKAGES": "OFF",
                 "CPPXX_BUILD_TESTS": "ON",
+                "CPPXX_BUILD_EXAMPLES": "ON",
                 "CPPXX_BUILD_CMD": "ON"
             }
         },
@@ -26,6 +27,7 @@
                 "CMAKE_BUILD_TYPE": "Release",
                 "CPM_USE_LOCAL_PACKAGES": "OFF",
                 "CPPXX_BUILD_TESTS": "ON",
+                "CPPXX_BUILD_EXAMPLES": "ON",
                 "CPPXX_BUILD_CMD": "ON"
             }
         }

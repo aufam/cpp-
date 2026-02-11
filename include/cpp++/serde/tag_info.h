@@ -9,6 +9,7 @@
 namespace cppxx::serde {
     struct TagInfo {
         std::string_view key         = "";
+        std::string_view env         = "";
         bool             skipmissing = false;
         bool             omitempty   = false;
         bool             noserde     = false;
@@ -36,9 +37,21 @@ namespace cppxx::serde {
         while (!sv.empty()) {
             size_t           next = sv.find(separator);
             std::string_view part = sv.substr(0, next);
+            constexpr char   ws[] = " \t\n\r\f\v";
+
+            size_t start = part.find_first_not_of(ws);
+            size_t end   = part.find_last_not_of(ws);
+
+            if (start == std::string_view::npos) {
+                part = {};
+            } else {
+                part = part.substr(start, end - start + 1);
+            }
 
             if (first)
                 (ti.key = part, first = false);
+            else if (std::string_view e = "env="; part.size() >= e.size() && part.compare(0, e.size(), e) == 0)
+                ti.env = part.substr(e.size());
             else if (part == "skipmissing")
                 ti.skipmissing = true;
             else if (part == "omitempty")

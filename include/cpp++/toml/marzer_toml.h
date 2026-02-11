@@ -82,14 +82,20 @@ namespace cppxx::serde {
         template <typename T>
         void into(T &val, bool src_is_path = false) const {
             __tomlpp::table tbl;
-            try {
-                tbl = src_is_path ? __tomlpp::parse_file(src) : __tomlpp::parse(src);
-            } catch (std::exception &e) {
-                throw error(e.what());
-            }
 
-            __tomlpp::node *node = &tbl;
-            Deserialize<__tomlpp::node, T>{node}.into(val);
+            try {
+                try {
+                    tbl = src_is_path ? __tomlpp::parse_file(src) : __tomlpp::parse(src);
+                } catch (std::exception &e) {
+                    throw error(e.what());
+                }
+                __tomlpp::node *node = &tbl;
+                Deserialize<__tomlpp::node, T>{node}.into(val);
+            } catch (error &err) {
+                if (src_is_path)
+                    err.path = src;
+                throw;
+            }
         }
     };
 

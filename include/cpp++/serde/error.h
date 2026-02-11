@@ -12,6 +12,7 @@ namespace cppxx::serde {
     public:
         std::string context;
         std::string msg;
+        std::string path;
 
         explicit error(std::string msg)
             : msg(std::move(msg)) {}
@@ -35,7 +36,8 @@ namespace cppxx::serde {
         }
 
         const char *what() const noexcept override {
-            what_ = "Error at " + (context.empty() ? "<root>" : context) + ": " + msg;
+            std::string root = !path.empty() ? "<" + path + ">" : context.empty() ? "<root>" : "";
+            what_            = "Error at " + root + context + ": " + msg;
             return what_.c_str();
         }
     };
