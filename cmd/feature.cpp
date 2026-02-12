@@ -7,9 +7,8 @@ void Context::resolve_feats(const std::vector<std::string> &features) {
     if (features.empty())
         return resolve_feats({"default"});
 
-    for (auto &[name, dep] : dependencies()) {
+    for (auto &[name, dep] : dependencies())
         resolve_remote_dep(name, dep);
-    }
 
     for (auto &name : features) {
         spdlog::debug("resolving target: {}", name);

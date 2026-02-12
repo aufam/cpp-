@@ -399,10 +399,13 @@ namespace cppxx::serde {
         T,
         std::enable_if_t<proto::protobuf::detail::is_numeric<T>::value>> {
         google::protobuf::io::CodedOutputStream &doc;
-        mutable bool                             fixed  = false;
-        mutable bool                             zigzag = false;
+        mutable bool                             fixed    = false;
+        mutable bool                             zigzag   = false;
+        mutable bool                             omitzero = true;
 
         void from(T v, const proto::protobuf::TagInfo &ti) const {
+            if (omitzero && v == T())
+                return;
             auto tag = google::protobuf::internal::WireFormatLite::MakeTag(
                 ti.field_number,
                 std::is_same_v<T, double>       ? google::protobuf::internal::WireFormatLite::WIRETYPE_FIXED64
@@ -539,7 +542,8 @@ namespace cppxx::serde {
 
         void from(const T &arr, const proto::protobuf::TagInfo &ti) const {
             if (!ti.packed) {
-                Serialize<google::protobuf::io::CodedOutputStream, typename T::value_type> ser = {this->doc};
+                auto ser     = Serialize<google::protobuf::io::CodedOutputStream, typename T::value_type>{this->doc};
+                ser.omitzero = false;
                 for (auto &v : arr)
                     ser.from(v, ti);
             } else {

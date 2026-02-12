@@ -105,7 +105,7 @@ std::string resolve_path(const std::string &cache, const std::string &path_str) 
         return resolve_path(cache, extract_path.string());
     }
 
-    if (fs::exists(path))
+    if (!fs::exists(path))
         throw std::runtime_error(fmt::format("{:?} does not exist or unresolvable", path_str));
 
     return path_str;

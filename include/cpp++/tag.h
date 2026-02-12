@@ -9,7 +9,7 @@ namespace cppxx {
     /// @code
     /// struct User {
     ///     Tag<std::string> name = "json:`name` opt:`name,positional,help=Specify user's name`";
-    ///     Tag<int> age = "json:`age` opt:`a,age,help=specify user's age`";
+    ///     Tag<int> age = "json:`age` opt:`a|age,help=specify user's age`";
     ///     Tag<std::optional<std::string>> email = {
     ///         "json:`email` opt:`email`", "user@example.com"
     ///     }; // with default value

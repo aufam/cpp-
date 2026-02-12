@@ -145,6 +145,14 @@ CPMAddPackage(
     COMPONENTS      gtest_main
 )
 
+CPMAddPackage(
+    NAME            benchmark
+    GIT_REPOSITORY  "https://github.com/google/benchmark"
+    GIT_TAG         v1.9.2
+    OPTIONS         "BENCHMARK_ENABLE_INSTALL OFF" "BENCHMARK_INSTALL_DOCS OFF" "BENCHMARK_INSTALL_TOOLS OFF" "BENCHMARK_USE_BUNDLED_GTEST OFF"
+    COMPONENTS      benchmark_main
+)
+
 # only setup the exeternal libraries
 if (CPPXX_REQUIREMENTS)
     return()
@@ -200,15 +208,16 @@ if (CPPXX_BUILD_CMD)
         cppxx_private
     )
 
-    target_link_options(cmd PRIVATE
-        $<$<CONFIG:Release>:-static>
-    )
+    # target_link_options(cmd PRIVATE
+    #     $<$<CONFIG:Release>:-static>
+    # )
 endif()
 
 
 # tests
 if (CPPXX_BUILD_TESTS)
-    file(GLOB_RECURSE TEST_SOURCES tests/*)
+    # unit tests
+    file(GLOB TEST_SOURCES tests/*)
     add_executable(test_all ${TEST_SOURCES})
     target_compile_features(test_all PRIVATE cxx_std_17)
 
@@ -221,7 +230,27 @@ if (CPPXX_BUILD_TESTS)
     )
 
 	enable_testing()
-	add_test(NAME test_all COMMAND test_all)
+    add_test(NAME test_all COMMAND test_all)	
+
+    # benchmark
+    file(GLOB BENCH_SOURCES tests/bench/*.cpp)
+    file(GLOB BENCH_PROTOS tests/bench/*.proto)
+    add_executable(bench_all ${BENCH_SOURCES})
+
+    target_compile_features(bench_all PRIVATE cxx_std_17)
+    target_include_directories(bench_all PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+
+    protobuf_generate(
+        TARGET   bench_all
+        LANGUAGE cpp
+        PROTOS   "${BENCH_PROTOS}"
+    )
+
+    target_link_libraries(bench_all PRIVATE
+        cppxx
+        cppxx_private
+        benchmark_main
+    )
 endif()
 
 

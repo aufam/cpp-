@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package person;
+
+option go_package = "person/";
+
+message Person {
+    string         name  = 1;
+    int32          id    = 2;
+    string         email = 3;
+    fixed32        num1  = 4;
+    sint32         num2  = 5;
+    int32          num3  = 6;
+    repeated int32 nums  = 7;
+}
