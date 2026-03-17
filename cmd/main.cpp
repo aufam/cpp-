@@ -17,7 +17,7 @@ int main(int argc, char **argv) {
 
     if (ctx.cache().empty())
         ctx.cache() = std::getenv("HOME") + std::string("/.cache/cpp++");
-    ctx.resolve_feats();
+    ctx.build();
 
     std::cout << cppxx::json::yy_json::dump(ctx, YYJSON_WRITE_PRETTY_TWO_SPACES) << '\n';
     return 0;

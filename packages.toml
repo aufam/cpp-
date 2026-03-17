@@ -248,3 +248,39 @@ src = [
     "{default}/src/utils/io/*.cpp",
 ]
 inc = ["public:{default}/include"]
+
+
+#
+# redis
+#
+[redis.package]
+name = "redis"
+
+[redis.dependencies]
+default = { git = "https://github.com/sewenew/redis-plus-plus", tag = "{version}" }
+
+[redis.targets.default]
+src = [
+    "{default}/src/sw/redis++/command.cpp",
+    "{default}/src/sw/redis++/command_options.cpp",
+    "{default}/src/sw/redis++/connection.cpp",
+    "{default}/src/sw/redis++/connection_pool.cpp",
+    "{default}/src/sw/redis++/crc16.cpp",
+    "{default}/src/sw/redis++/errors.cpp",
+    "{default}/src/sw/redis++/pipeline.cpp",
+    "{default}/src/sw/redis++/redis.cpp",
+    "{default}/src/sw/redis++/redis_cluster.cpp",
+    "{default}/src/sw/redis++/redis_uri.cpp",
+    "{default}/src/sw/redis++/reply.cpp",
+    "{default}/src/sw/redis++/sentinel.cpp",
+    "{default}/src/sw/redis++/shards.cpp",
+    "{default}/src/sw/redis++/shards_pool.cpp",
+    "{default}/src/sw/redis++/subscriber.cpp",
+    "{default}/src/sw/redis++/transaction.cpp",
+    "{default}/src/sw/redis++/patterns/redlock.cpp",
+]
+inc = [
+    "public:{default}/src",
+    "public:{default}/src/sw/redis++/no_tls",
+    "public:{default}/src/sw/redis++/cxx17",
+]

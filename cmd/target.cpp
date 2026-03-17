@@ -99,3 +99,90 @@ void Context::resolve_target(const std::string &name, Target &target) {
         compile_commands().push_back(cc);
     }
 }
+
+Target &Target::operator+=(const Target &other) {
+    for (auto &str : other.src())
+        push_unique(src(), str);
+
+    for (auto &str : other.inc())
+        push_unique(inc(), str);
+
+    for (auto &str : other.flags())
+        push_unique(flags(), str);
+
+    for (auto &str : other.link_flags())
+        push_unique(link_flags(), str);
+
+    return *this;
+}
+
+void Target::collect_compile_commands(
+    const std::string              &cache,
+    const Package                  &package,
+    const std::string              &name,
+    const std::vector<std::string> &flags,
+    std::vector<CompileCommand>    &v
+) const {
+    for (size_t i = 0; i < this->src().size(); ++i) {
+        auto    &src  = this->src()[i];
+        fs::path base = working_dirs()[i];
+        if (base.empty())
+            base = fs::current_path();
+
+        try {
+            auto expanded = expand_path((base / src).string());
+            for (fs::path entry : expanded) {
+                CompileCommand cc;
+                cc.directory() = fmt::format("{}/build/{}-{}/{}", cache, package.name(), package.version(), name);
+                cc.output()    = fs::relative(entry, base).string() + ".o";
+                cc.file()      = entry.string();
+                if (auto ext = entry.extension(); ext == ".cpp" || ext == ".cxx" || ext == ".cc" || ext == ".cppm") {
+                    if (ext == ".cppm" && package.edition() < 20)
+                        throw std::runtime_error(fmt::format(
+                            "C++ modules are not supported in edition {}, but {} is used", package.edition(), entry.string()
+                        ));
+
+                    cc.command() = fmt::format(
+                        "c++ -std=c++{} {} -o {} -c {}", package.edition(), fmt::join(flags, " "), cc.output(), cc.file()
+                    );
+                    v.push_back(cc);
+                } else if (ext == ".c") {
+                    cc.command() = fmt::format("cc {} -o {} -c {}", fmt::join(flags, " "), cc.output(), cc.file());
+                    v.push_back(cc);
+                }
+            }
+        } catch (std::exception &e) {
+            throw std::runtime_error(fmt::format("Cannot resolve src {:?}: {}", src, e.what()));
+        }
+    }
+}
+
+void push_unique(std::vector<std::string> &v, const std::string &str) {
+    for (auto &s : v)
+        if (s == str)
+            return;
+    v.push_back(str);
+}
+
+void Target::collect_flags(std::vector<std::string> &flags, std::vector<std::string> &public_flags) const {
+    for (auto &str : this->inc())
+        if (std::string pub = "public:"; str.rfind(pub, 0) == 0) {
+            push_unique(public_flags, "-I" + str.substr(pub.size()));
+            push_unique(flags, "-I" + str.substr(pub.size()));
+        } else {
+            push_unique(flags, "-I" + str.substr(pub.size()));
+        }
+
+    for (auto &str : this->flags())
+        if (std::string pub = "public:"; str.rfind(pub, 0) == 0) {
+            push_unique(public_flags, str.substr(pub.size()));
+            push_unique(flags, str.substr(pub.size()));
+        } else {
+            push_unique(flags, str.substr(pub.size()));
+        }
+}
+
+void Target::collect_link_flags(std::vector<std::string> &v) const {
+    for (auto &str : link_flags())
+        push_unique(v, str);
+}

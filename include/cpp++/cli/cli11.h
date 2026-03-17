@@ -100,7 +100,10 @@ namespace cppxx::serde {
         void into(std::tuple<Ts...> &tpl) const {
             CLI::App app{app_desc, argv[0]};
             argv = app.ensure_utf8(argv);
+
+#ifdef _WIN32
             app.allow_windows_style_options();
+#endif
 
             tuple_for_each(tpl, [&](auto &v, size_t) {
                 auto &val    = serde::detail::get_underlying_value(v);

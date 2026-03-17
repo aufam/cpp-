@@ -8,6 +8,8 @@ namespace fs = std::filesystem;
 
 
 void Context::resolve_remote_dep(const std::string &name, Context::Dep &dep) {
+    // TODO: resolve remote for defaults and resolve_remote for optional
+
     auto &d = convert_dep(dep);
 
     const bool default_target_is_not_defined = targets().find("default") == targets().end();
@@ -34,22 +36,17 @@ void Context::resolve_remote_dep(const std::string &name, Context::Dep &dep) {
         p.no_default_features() = !d.default_features().value_or(true);
         p.package().version()   = d.version();
 
-        apply_version_to_packages(d.version(), p);
-
-        p.resolve_feats(d.features());
-
-        for (auto &[target_name, t] : p.targets()) {
-            if (target_name != "default") {
-                targets()[name + "/" + target_name] = t;
-            } else {
-                targets()[name] = t;
-            }
+        try {
+            p.build(d.features());
+        } catch (const std::exception &e) {
+            throw std::runtime_error(fmt::format("Error building dependency `{}`: {}", name, e.what()));
         }
 
-        if (!p.no_default_features()) {
-            default_target += targets()[name];
-        }
+        compile_commands().insert(compile_commands().end(), p.compile_commands().begin(), p.compile_commands().end());
+        public_inc().insert(public_inc().end(), p.public_inc().begin(), p.public_inc().end());
+        link_flags().insert(link_flags().end(), p.link_flags().begin(), p.link_flags().end());
 
+        // TODO: handle default target
         return;
     }
 

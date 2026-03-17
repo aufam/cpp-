@@ -7,9 +7,12 @@
 #include <variant>
 #include <vector>
 
+struct CompileCommand;
+
 struct Package {
     cppxx::Tag<std::string> name    = "toml,json:`name`";
     cppxx::Tag<std::string> version = "toml,json:`version,skipmissing,omitempty`";
+    cppxx::Tag<int>         edition = {"toml,json:`edition,skipmissing`", 17};
 };
 
 struct Dependency {
@@ -34,19 +37,28 @@ struct Target {
     cppxx::Tag<std::vector<std::string>> link_flags = "toml:`link-flags,skipmissing,omitempty`"
                                                       "json:`linkFlags,skipmissing,omitempty`";
 
-    Target &operator+=(const Target &other) {
-        src().insert(src().end(), other.src().begin(), other.src().end());
-        inc().insert(inc().end(), other.inc().begin(), other.inc().end());
-        flags().insert(flags().end(), other.flags().begin(), other.flags().end());
-        link_flags().insert(link_flags().end(), other.link_flags().begin(), other.link_flags().end());
-        return *this;
-    }
+    cppxx::Tag<std::vector<std::string>> working_dirs = "json:`workingDirs,skipmissing,omitempty`";
+
+    Target &operator+=(const Target &other);
 
     Target operator+(const Target &other) const {
         Target self = *this;
         self += other;
         return self;
     }
+
+    void apply_dependency_path(const std::unordered_map<std::string, std::string> &working_dirs);
+
+    void collect_compile_commands(
+        const std::string              &cache,
+        const Package                  &package,
+        const std::string              &name,
+        const std::vector<std::string> &flags,
+        std::vector<CompileCommand>    &commands
+    ) const;
+
+    void collect_flags(std::vector<std::string> &flags, std::vector<std::string> &public_flags) const;
+    void collect_link_flags(std::vector<std::string> &link_flags) const;
 };
 
 struct CompileCommand {
@@ -54,6 +66,8 @@ struct CompileCommand {
     cppxx::Tag<std::string> directory = "json:`directory`";
     cppxx::Tag<std::string> command   = "json:`command`";
     cppxx::Tag<std::string> output    = "json:`output`";
+
+    void compile() const;
 };
 
 struct Context {
@@ -77,10 +91,17 @@ struct Context {
     cppxx::Tag<std::vector<std::string>>    link_flags       = "json:`link_flags`";
 
 public:
+    void build(const std::vector<std::string> &features = {});
     void resolve_feats(const std::vector<std::string> &features = {});
 
 private:
+    void pre();
+    void apply_package_placeholders();
+    void apply_workdirs(const std::string &name, Target &target);
+
+    auto resolve_workdirs(const std::string &str) -> std::pair<std::string, std::string>;
     void resolve_remote_dep(const std::string &name, Dep &dep);
+
     void resolve_target(const std::string &name, Target &target);
 };
 
@@ -93,3 +114,4 @@ std::string git_clone(const std::string &cache, const std::string &git, const st
 std::vector<std::string> expand_path(const std::string &pattern);
 
 void string_replace(std::string &str, const std::string &key, const std::string &value);
+void push_unique(std::vector<std::string> &v, const std::string &str);
