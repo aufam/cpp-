@@ -34,9 +34,11 @@ static fs::path get_top_level_path_from_tar(const std::string &tar_file) {
 
     // TODO: what if the tar_file has multiple paths
     if (result.size() > 1)
-        throw std::runtime_error(fmt::format(
-            "Multiple top level paths from {:?} are not supported. The paths are: {}", tar_file, fmt::join(result, " ")
-        ));
+        throw std::runtime_error(
+            fmt::format(
+                "Multiple top level paths from {:?} are not supported. The paths are: {}", tar_file, fmt::join(result, " ")
+            )
+        );
 
     return result.front();
 }
@@ -113,7 +115,8 @@ std::string resolve_path(const std::string &cache, const std::string &path_str) 
 }
 
 std::vector<std::string> expand_path(const std::string &path) {
-    std::string  cmd  = fmt::format("printf '%s\\n' {}", path);
+    std::string cmd = fmt::format("printf '%s\\n' {}", path);
+    spdlog::debug("Expand path: {}", cmd);
     auto         pipe = popen(cmd.c_str(), "r");
     cppxx::defer _    = [&]() { pclose(pipe); };
 
@@ -130,5 +133,6 @@ std::vector<std::string> expand_path(const std::string &path) {
         res.push_back(entry.string());
     }
 
+    spdlog::debug("Expand path succeeded: {}", cmd);
     return res;
 }

@@ -16,7 +16,14 @@ void Context::build(const std::vector<std::string> &features) {
 
     pre();
 
-    std::vector<std::string> public_flags;
+    for (auto &[name, dep] : dependencies()) {
+        auto &d = convert_dep(dep);
+        if (!d.optional() && !no_default_features())
+            resolve_remote_dep(name, dep);
+    }
+
+    std::unordered_map<std::string, Target> exported_targets;
+    std::vector<std::string>                public_flags;
     for (auto &name : features) {
         auto it = targets().find(name);
         if (it == targets().end())
@@ -152,10 +159,10 @@ void Context::apply_package_placeholders() {
     }
 }
 
-void Context::apply_workdirs(const std::string &name, Target &target) {
+void Context::apply_workdirs(const std::string &feature, Target &target) {
     for (auto &str : target.inc())
         try {
-            auto [relative, base] = resolve_workdirs(name);
+            auto [relative, base] = resolve_workdirs(str);
             str                   = fmt::format("{}/{}", base, relative);
         } catch (const std::invalid_argument &e) {
             throw std::runtime_error(fmt::format("Error resolving inc `{}`: {}", str, e.what()));
@@ -163,7 +170,7 @@ void Context::apply_workdirs(const std::string &name, Target &target) {
 
     for (auto &str : target.flags())
         try {
-            auto [relative, base] = resolve_workdirs(name);
+            auto [relative, base] = resolve_workdirs(str);
             str                   = fmt::format("{}/{}", base, relative);
         } catch (const std::invalid_argument &e) {
             throw std::runtime_error(fmt::format("Error resolving flag `{}`: {}", str, e.what()));
@@ -171,7 +178,7 @@ void Context::apply_workdirs(const std::string &name, Target &target) {
 
     for (auto &str : target.link_flags())
         try {
-            auto [relative, base] = resolve_workdirs(name);
+            auto [relative, base] = resolve_workdirs(str);
             str                   = fmt::format("{}/{}", base, relative);
         } catch (const std::invalid_argument &e) {
             throw std::runtime_error(fmt::format("Error resolving link_flag `{}`: {}", str, e.what()));
@@ -181,7 +188,7 @@ void Context::apply_workdirs(const std::string &name, Target &target) {
     for (size_t i = 0; i < target.src().size(); ++i) {
         auto &str = target.src()[i];
         try {
-            auto [relative, base]    = resolve_workdirs(name);
+            auto [relative, base]    = resolve_workdirs(str);
             str                      = relative;
             target.working_dirs()[i] = base;
         } catch (const std::invalid_argument &e) {
@@ -191,6 +198,7 @@ void Context::apply_workdirs(const std::string &name, Target &target) {
 }
 
 auto Context::resolve_workdirs(const std::string &str) -> std::pair<std::string, std::string> {
+    spdlog::debug("Resolving {}", str);
     if (str.empty()) {
         throw std::invalid_argument("Empty src");
     }
@@ -244,6 +252,7 @@ auto Context::resolve_workdirs(const std::string &str) -> std::pair<std::string,
         throw std::invalid_argument("Path traversal not allowed");
     }
 
+    spdlog::debug("Resolved {}, relative={}, base={}", str, relative, base);
     return {relative, base};
 }
 
@@ -275,6 +284,7 @@ void Target::apply_dependency_path(const std::unordered_map<std::string, std::st
             throw std::runtime_error(fmt::format("Error resolving link_flag `{}`: {}", str, e.what()));
         }
 
+    this->working_dirs().resize(src().size());
     for (size_t i = 0; i < src().size(); ++i) {
         auto &str = src()[i];
         try {

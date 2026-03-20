@@ -129,6 +129,7 @@ void Target::collect_compile_commands(
         if (base.empty())
             base = fs::current_path();
 
+        spdlog::debug("base={:?} src={:?}", base.string(), src);
         try {
             auto expanded = expand_path((base / src).string());
             for (fs::path entry : expanded) {
@@ -138,9 +139,11 @@ void Target::collect_compile_commands(
                 cc.file()      = entry.string();
                 if (auto ext = entry.extension(); ext == ".cpp" || ext == ".cxx" || ext == ".cc" || ext == ".cppm") {
                     if (ext == ".cppm" && package.edition() < 20)
-                        throw std::runtime_error(fmt::format(
-                            "C++ modules are not supported in edition {}, but {} is used", package.edition(), entry.string()
-                        ));
+                        throw std::runtime_error(
+                            fmt::format(
+                                "C++ modules are not supported in edition {}, but {} is used", package.edition(), entry.string()
+                            )
+                        );
 
                     cc.command() = fmt::format(
                         "c++ -std=c++{} {} -o {} -c {}", package.edition(), fmt::join(flags, " "), cc.output(), cc.file()

@@ -17,7 +17,13 @@ int main(int argc, char **argv) {
 
     if (ctx.cache().empty())
         ctx.cache() = std::getenv("HOME") + std::string("/.cache/cpp++");
-    ctx.build();
+
+    try {
+        ctx.build();
+    } catch (std::exception &e) {
+        spdlog::error("Failed to build: {}", e.what());
+        exit(1);
+    }
 
     std::cout << cppxx::json::yy_json::dump(ctx, YYJSON_WRITE_PRETTY_TWO_SPACES) << '\n';
     return 0;

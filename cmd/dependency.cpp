@@ -12,15 +12,15 @@ void Context::resolve_remote_dep(const std::string &name, Context::Dep &dep) {
 
     auto &d = convert_dep(dep);
 
-    const bool default_target_is_not_defined = targets().find("default") == targets().end();
+    const bool default_target_is_not_defined = targets().find(name) == targets().end();
 
-    auto &default_target = targets()["default"];
+    auto &default_target = targets()[name];
 
     if (!d.path().empty()) {
         spdlog::info("resolving path of {}: {}", name, d.path());
         d.path() = resolve_path(cache(), d.path());
     } else if (!d.git().empty()) {
-        auto tag = d.tag().empty() ? d.branch() : d.tag();
+        auto &tag = d.tag().empty() ? d.branch() : d.tag();
         spdlog::info("resolving git of {}: {} {}", name, d.git(), tag);
         d.path() = git_clone(cache(), d.git(), tag);
     } else if (d.version().empty()) {
@@ -39,11 +39,14 @@ void Context::resolve_remote_dep(const std::string &name, Context::Dep &dep) {
         try {
             p.build(d.features());
         } catch (const std::exception &e) {
-            throw std::runtime_error(fmt::format("Error building dependency `{}`: {}", name, e.what()));
+            throw std::runtime_error(
+                fmt::format("Error building dependency package={} `{}`: {}", package().name(), name, e.what())
+            );
         }
 
         compile_commands().insert(compile_commands().end(), p.compile_commands().begin(), p.compile_commands().end());
         public_inc().insert(public_inc().end(), p.public_inc().begin(), p.public_inc().end());
+        public_flags().insert(public_flags().end(), p.public_flags().begin(), p.public_flags().end());
         link_flags().insert(link_flags().end(), p.link_flags().begin(), p.link_flags().end());
 
         // TODO: handle default target
