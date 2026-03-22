@@ -14,7 +14,7 @@ void Context::resolve_remote_dep(const std::string &name, Context::Dep &dep) {
 
     const bool default_target_is_not_defined = targets().find(name) == targets().end();
 
-    auto &default_target = targets()[name];
+    auto &default_target = convert_feat(targets()[name]);
 
     if (!d.path().empty()) {
         spdlog::info("resolving path of {}: {}", name, d.path());
@@ -72,54 +72,17 @@ Dependency &convert_dep(Context::Dep &dep) {
 
     return std::get<Dependency>(dep);
 }
-
-void apply_version_to_packages(const std::string &version, Context &dep_package) {
-    for (auto &[_, dep] : dep_package.dependencies()) {
-        auto &d = convert_dep(dep);
-        string_replace(d.version(), "version", version);
-        string_replace(d.path(), "version", version);
-        string_replace(d.url(), "version", version);
-        string_replace(d.git(), "version", version);
-        string_replace(d.branch(), "version", version);
-        string_replace(d.tag(), "version", version);
-        string_replace(d.subdir(), "version", version);
+Target &Context::convert_feat(Context::Feat &feat) {
+    if (auto *feats = std::get_if<std::vector<std::string>>(&feat)) {
+        Target t{};
+        for (auto &name : *feats)
+            try {
+                t += convert_feat(targets().at(name));
+            } catch (std::out_of_range &e) {
+                throw std::runtime_error("Cannot find feature `" + name + "`");
+            }
+        feat = t;
     }
 
-    for (auto &[_, feats] : dep_package.features()) {
-        for (auto &feat : feats)
-            string_replace(feat, "version", version);
-    }
-
-    for (auto &[_, t] : dep_package.targets()) {
-        for (auto &o : t.src())
-            string_replace(o, "version", version);
-        for (auto &o : t.inc())
-            string_replace(o, "version", version);
-        for (auto &o : t.flags())
-            string_replace(o, "version", version);
-        for (auto &o : t.link_flags())
-            string_replace(o, "version", version);
-    }
-
-    for (auto &t : dep_package.bin()) {
-        for (auto &o : t.src())
-            string_replace(o, "version", version);
-        for (auto &o : t.inc())
-            string_replace(o, "version", version);
-        for (auto &o : t.flags())
-            string_replace(o, "version", version);
-        for (auto &o : t.link_flags())
-            string_replace(o, "version", version);
-    }
-
-    if (auto &t = dep_package.lib(); t.has_value()) {
-        for (auto &o : t->src())
-            string_replace(o, "version", version);
-        for (auto &o : t->inc())
-            string_replace(o, "version", version);
-        for (auto &o : t->flags())
-            string_replace(o, "version", version);
-        for (auto &o : t->link_flags())
-            string_replace(o, "version", version);
-    }
+    return std::get<Target>(feat);
 }

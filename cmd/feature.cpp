@@ -17,7 +17,7 @@ void Context::resolve_feats(const std::vector<std::string> &features) {
     for (auto &name : features) {
         spdlog::debug("resolving target: {}", name);
         if (auto it = targets().find(name); it != targets().end()) {
-            resolve_target(it->first, it->second);
+            resolve_target(it->first, convert_feat(it->second));
         } else {
             throw std::runtime_error("cannot resolve feature `" + name + "`");
         }

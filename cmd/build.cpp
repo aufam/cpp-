@@ -29,7 +29,7 @@ void Context::build(const std::vector<std::string> &features) {
         if (it == targets().end())
             throw std::runtime_error("cannot find feature `" + name + "`");
 
-        auto &t = it->second;
+        auto &t = convert_feat(it->second);
         apply_workdirs(name, t);
 
         // std::unordered_map<std::string, std::string> working_dirs;
@@ -83,6 +83,7 @@ void Context::pre() {
 
     apply_package_placeholders();
 
+    std::ignore = targets()["default"];
     // const bool default_target_is_not_defined = targets().find("default") == targets().end();
     // auto      &default_target                = targets()["default"];
     // if (default_target_is_not_defined) {
@@ -135,7 +136,8 @@ void Context::apply_package_placeholders() {
         }
     }
 
-    for (auto &[_, t] : targets()) {
+    for (auto &[_, features] : targets()) {
+        auto &t = convert_feat(features);
         for (auto &o : t.src()) {
             string_replace(o, "name", name);
             string_replace(o, "version", version);

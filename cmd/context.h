@@ -71,14 +71,15 @@ struct CompileCommand {
 };
 
 struct Context {
-    using Dep = std::variant<std::string, Dependency>;
+    using Dep  = std::variant<std::string, Dependency>;
+    using Feat = std::variant<std::vector<std::string>, Target>;
 
     cppxx::Tag<std::unordered_map<std::string, Context>> packages     = "toml:`packages,skipmissing,omitempty`";
     cppxx::Tag<Package>                                  package      = "toml,json:`package`";
     cppxx::Tag<std::unordered_map<std::string, Dep>>     dependencies = "toml,json:`dependencies,skipmissing,omitempty`";
 
     cppxx::Tag<std::unordered_map<std::string, std::vector<std::string>>> features = "toml,json:`features,skipmissing,omitempty`";
-    cppxx::Tag<std::unordered_map<std::string, Target>>                   targets  = "toml,json:`targets,skipmissing,omitempty`";
+    cppxx::Tag<std::unordered_map<std::string, Feat>>                     targets  = "toml,json:`targets,skipmissing,omitempty`";
     cppxx::Tag<std::optional<Target>>                                     lib      = "toml,json:`lib,skipmissing,omitempty`";
     cppxx::Tag<std::vector<Target>>                                       bin      = "toml,json:`bin,skipmissing,omitempty`";
 
@@ -103,10 +104,11 @@ private:
     void resolve_remote_dep(const std::string &name, Dep &dep);
 
     void resolve_target(const std::string &name, Target &target);
+
+    Target &convert_feat(Context::Feat &feat);
 };
 
 Dependency &convert_dep(Context::Dep &dep);
-void        apply_version_to_packages(const std::string &version, Context &dep_package);
 
 std::string resolve_path(const std::string &cache, const std::string &path);
 std::string git_clone(const std::string &cache, const std::string &git, const std::string &tag);
