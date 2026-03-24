@@ -16,9 +16,10 @@ void Context::build(const std::vector<std::string> &features) {
 
     pre();
 
+    auto &default_target = targets()["default"];
     for (auto &[name, dep] : dependencies()) {
         auto &d = convert_dep(dep);
-        if (!d.optional() && !no_default_features())
+        if (!d.optional())
             resolve_remote_dep(name, dep);
     }
 

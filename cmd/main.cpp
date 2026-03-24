@@ -15,8 +15,8 @@ int main(int argc, char **argv) {
     cppxx::toml::marzer_toml::parse_from_file("./packages.toml", ctx.packages());
     cppxx::toml::marzer_toml::parse_from_file("./cpp++.toml", ctx);
 
-    if (ctx.cache().empty())
-        ctx.cache() = std::getenv("HOME") + std::string("/.cache/cpp++");
+    // if (ctx.cache().empty())
+    ctx.cache() = std::getenv("HOME") + std::string("/.cpp++");
 
     try {
         ctx.build();

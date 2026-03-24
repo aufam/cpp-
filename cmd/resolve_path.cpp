@@ -57,7 +57,7 @@ std::string resolve_path(const std::string &cache, const std::string &path_str) 
 
     if (is_remote) {
         const std::string &url = path_str;
-        const fs::path     out = fs::path(cache) / path;
+        const fs::path     out = fs::path(cache) / "src" / path;
         const fs::path     dir = out.parent_path();
         const std::string  cmd = fmt::format(
             "[ -f \"{0}\" ] || "
@@ -107,8 +107,7 @@ std::string resolve_path(const std::string &cache, const std::string &path_str) 
         return resolve_path(cache, extract_path.string());
     }
 
-    // TODO: resolve environment variables, ~, etc.
-    if (!fs::exists(path))
+    if (std::string cmd = fmt::format("[ -d \"{}\" ]", path.string()); std::system(cmd.c_str()))
         throw std::runtime_error(fmt::format("{:?} does not exist or unresolvable", path_str));
 
     return path_str;
