@@ -1,3 +1,5 @@
+#:schema ./packages-schema.json
+
 #
 # fmt
 #
@@ -5,10 +7,16 @@
 name = "fmt"
 
 [fmt.dependencies]
-default = { git = "https://github.com/fmtlib/fmt", tag = "{version}" }
+default = {
+    git = "https://github.com/fmtlib/fmt",
+    tag = "{version}",
+    src = ["src/format.cc", "src/os.cc"],
+    inc = ["public:include"],
+}
 
 [fmt.targets]
 default = { src = ["{default}/src/format.cc", "{default}/src/os.cc"], inc = ["public:{default}/include"] }
+
 
 #
 # spdlog
@@ -17,11 +25,22 @@ default = { src = ["{default}/src/format.cc", "{default}/src/os.cc"], inc = ["pu
 name = "spdlog"
 
 [spdlog.dependencies]
-default = { git = "https://github.com/gabime/spdlog", tag = "v{version}" }
+default = {
+    git = "https://github.com/gabime/spdlog",
+    tag = "v{version}",
+    src = ["src/*"],
+    inc = ["public:include"],
+    flags = ["public:-DSPDLOG_COMPILED_LIB"],
+}
+
+'fmt-external' = {
+    flags = ["public:-DSPDLOG_FMT_EXTERNAL"],
+    optional = true,
+}
 
 [spdlog.targets]
-default = { src = ["{default}/src/*"], inc = ["public:{default}/include"], flags = ["public:-DSPDLOG_FMT_EXTERNAL"] }
-fmt = { src = ["{default}/src/*"], inc = ["public:{default}/include"] }
+default = { src = ["{default}/src/*"], inc = ["public:{default}/include"], flags = ["public:-DSPDLOG_COMPILED_LIB", "public:-DSPDLOG_FMT_EXTERNAL"] }
+fmt = { src = ["{default}/src/*"], inc = ["public:{default}/include"], flags = ["public:-DSPDLOG_COMPILED_LIB"] }
 
 
 #
@@ -41,7 +60,12 @@ default = { path = "https://github.com/nlohmann/json/releases/download/v{version
 name = "yyjson"
 
 [yyjson.dependencies]
-default = { git = "https://github.com/ibireme/yyjson", tag = "{version}" }
+default = { 
+    git = "https://github.com/ibireme/yyjson",
+    tag = "{version}",
+    src = ["src/yyjson.c"],
+    inc = ["src"],
+}
 
 [yyjson.targets]
 default = { src = ["{default}/src/yyjson.c"], inc = ["{default}/src"] }
@@ -65,6 +89,16 @@ name = "toml++"
 
 ['toml++'.dependencies]
 default = { git = "https://github.com/marzer/tomlplusplus", tag = "v{version}" }
+
+
+#
+# toml11
+#
+[toml11.package]
+name = "toml11"
+
+[toml11.dependencies]
+default = { git = "https://github.com/ToruNiina/toml11", tag = "v{version}" }
 
 
 #
@@ -114,7 +148,14 @@ default = { git = "https://github.com/CLIUtils/CLI11", tag = "v{version}" }
 name = "httplib"
 
 [httplib.dependencies]
-default = { git = "https://github.com/yhirose/cpp-httplib", tag = "v{version}" }
+default = {
+    git = "https://github.com/yhirose/cpp-httplib",
+    tag = "v{version}",
+    inc = ["public:"],
+    link-flags = ["-lpthread"],
+}
+ssl = { flags = ["public:-DCPPHTTPLIB_OPENSSL_SUPPORT"], link-flags = ["-lssl", "-lcrypto"], optional = true }
+zlib = { flags = ["public:-DCPPHTTPLIB_ZLIB_SUPPORT"], link-flags = ["-lz"], optional = true }
 
 [httplib.targets]
 default = { inc = ["public:{default}"], link-flags = ["-lpthread"] }

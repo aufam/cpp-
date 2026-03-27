@@ -31,7 +31,8 @@ void Context::build(const std::vector<std::string> &features) {
             throw std::runtime_error("cannot find feature `" + name + "`");
 
         auto &t = convert_feat(it->second);
-        apply_workdirs(name, t);
+        if (t.working_dirs().size() != t.src().size())
+            apply_workdirs(name, t);
 
         // std::unordered_map<std::string, std::string> working_dirs;
         // for (auto &[name, dep] : dependencies()) {

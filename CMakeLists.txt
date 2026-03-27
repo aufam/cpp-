@@ -88,6 +88,13 @@ CPMAddPackage(
     GIT_TAG         v3.4.0
 )
 
+CPMAddPackage(
+    NAME            toml11
+    GIT_REPOSITORY  "https://github.com/ToruNiina/toml11"
+    GIT_TAG         v4.4.0
+    OPTIONS         "TOML11_INSTALL OFF"
+)
+
 ## Boost's struct reflection
 CPMAddPackage(
     NAME            pfr
@@ -170,6 +177,7 @@ target_link_libraries(cppxx_private INTERFACE
     yyjson
     rapidjson
     tomlplusplus::tomlplusplus
+    toml11::toml11
     Boost::pfr
     magic_enum
     cxxopts
@@ -230,7 +238,7 @@ if (CPPXX_BUILD_TESTS)
     )
 
 	enable_testing()
-    add_test(NAME test_all COMMAND test_all)	
+    add_test(NAME test_all COMMAND test_all)
 
     # benchmark
     file(GLOB BENCH_SOURCES tests/bench/*.cpp)

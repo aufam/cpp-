@@ -1,4 +1,4 @@
-#include <cpp++/toml/marzer_toml.h>
+#include <cpp++/toml/toruniina_toml.h>
 #include <cpp++/json/yy_json.h>
 #include <cpp++/cli/cli11.h>
 #include <spdlog/spdlog.h>
@@ -10,10 +10,12 @@ int main(int argc, char **argv) {
     spdlog::set_default_logger(std::make_shared<spdlog::logger>("cpp++", std::move(sink)));
     spdlog::set_level(spdlog::level::trace);
 
+    constexpr auto toml_version = cppxx::toml::toruniina_toml::spec::v(1, 1, 0);
+
     Context ctx;
     cppxx::cli::cli11::parse("c++ plusplus", argc, argv, ctx);
-    cppxx::toml::marzer_toml::parse_from_file("./packages.toml", ctx.packages());
-    cppxx::toml::marzer_toml::parse_from_file("./cpp++.toml", ctx);
+    cppxx::toml::toruniina_toml::parse_from_file("./packages.toml", ctx.packages(), toml_version);
+    cppxx::toml::toruniina_toml::parse_from_file("./cpp++.toml", ctx, toml_version);
 
     // if (ctx.cache().empty())
     ctx.cache() = std::getenv("HOME") + std::string("/.cpp++");
