@@ -7,4 +7,5 @@
 !.gitmodules
 !.gitlab-ci.yml
 !.clang-format
+!.tombi.toml
 compile_commands.json
