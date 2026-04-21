@@ -56,6 +56,8 @@ struct Dependency {
     cppxx::Tag<std::vector<std::string>> flags      = "toml,json:`flags,skipmissing,omitempty`";
     cppxx::Tag<std::vector<std::string>> link_flags = "toml:`link-flags,skipmissing,omitempty`"
                                                       "json:`linkFlags,skipmissing,omitempty`";
+
+    Dependency &operator+=(const Dependency &other);
 };
 
 struct CompileCommand {
@@ -106,4 +108,3 @@ std::string git_clone(const std::string &cache, const std::string &git, const st
 std::vector<std::string> expand_path(const std::string &working_dir, std::vector<std::string> sources);
 
 void string_replace(std::string &str, const std::string &key, const std::string &value);
-void push_unique(std::vector<std::string> &v, const std::string &str);

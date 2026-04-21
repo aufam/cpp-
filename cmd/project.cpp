@@ -1,4 +1,5 @@
 #include "main.h"
+#include <algorithm>
 #include <fmt/ranges.h>
 #include <spdlog/spdlog.h>
 #include <filesystem>
