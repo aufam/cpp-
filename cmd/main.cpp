@@ -3,7 +3,7 @@
 #include <cpp++/cli/cli11.h>
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
-#include "context.h"
+#include "main.h"
 
 int main(int argc, char **argv) {
     auto sink = std::make_shared<spdlog::sinks::stderr_color_sink_mt>();
@@ -12,13 +12,13 @@ int main(int argc, char **argv) {
 
     constexpr auto toml_version = cppxx::toml::toruniina_toml::spec::v(1, 1, 0);
 
-    Context ctx;
+    Project ctx;
     cppxx::cli::cli11::parse("c++ plusplus", argc, argv, ctx);
     cppxx::toml::toruniina_toml::parse_from_file("./packages.toml", ctx.packages(), toml_version);
     cppxx::toml::toruniina_toml::parse_from_file("./cpp++.toml", ctx, toml_version);
 
-    // if (ctx.cache().empty())
-    ctx.cache() = std::getenv("HOME") + std::string("/.cpp++");
+    if (ctx.cache().empty())
+        ctx.cache() = std::getenv("HOME") + std::string("/.cpp++");
 
     try {
         ctx.build();

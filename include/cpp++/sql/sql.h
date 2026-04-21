@@ -80,6 +80,10 @@ namespace cppxx::sql {
     public:
         virtual ~Connection() = default;
 
+        virtual void begin_transaction() = 0;
+        virtual void commit()            = 0;
+        virtual void cancel()            = 0;
+
         // TODO: implement generic?
         template <typename Params, typename Row>
         Rows<Row> operator()(const Statement<Params, Row> &statement);
@@ -160,6 +164,11 @@ namespace cppxx::sql {
             return *this + Statement<>{std::string(" from ") + T::TableName};
         }
 
+        template <typename T>
+        auto left_join(const T &) const {
+            return *this + Statement<>{std::string(" left join ") + T::TableName};
+        }
+
         template <typename Col>
         auto to(const Col &col) const {
             return *this + Statement<>{std::string(" to ") + col.name()};
@@ -178,6 +187,11 @@ namespace cppxx::sql {
         template <typename Condition>
         auto where(const Condition &condition) const {
             return *this + Statement<>{" where "} + condition;
+        }
+
+        template <typename Condition>
+        auto on(const Condition &condition) const {
+            return *this + Statement<>{" on "} + condition;
         }
 
         template <typename... Rest>
@@ -202,6 +216,18 @@ namespace cppxx::sql {
             else
                 return *this + Statement<>{" order by " + col.name() + ((std::string(", ") + cols.name()) + ...)};
         };
+
+        auto order_by(const std::vector<std::string> &cols) const {
+            if (!cols.empty()) {
+                std::string clause = " order by " + cols[0];
+                for (size_t i = 1; i < cols.size(); ++i) {
+                    clause += ", " + cols[i];
+                }
+                return *this + Statement<>{clause};
+            } else {
+                return *this;
+            }
+        }
 
         auto limit(std::optional<size_t> val) const {
             if (val.has_value())
@@ -369,6 +395,11 @@ namespace cppxx::sql {
             return Statement<>{name() + " <= "} + stmt;
         }
 
+        /// TODO: just to avoid ambiguity with `table.col == "literal"`
+        auto operator==(Column<T> &other) const {
+            return Statement<>{name() + " = " + other.name()};
+        }
+
         const struct Asc {
             const Column *col;
             std::string   name() const {
@@ -418,6 +449,9 @@ namespace cppxx::sql {
     inline static const Statement<> create_table_if_not_exists = {
         std::string("create table if not exists ") + Schema<Table>::name() + " " + Schema<Table>::columns()
     };
+
+    template <typename Table>
+    inline static const Statement<> alter_table = {std::string("alter table ") + Schema<Table>::name()};
 
     template <typename Table>
     inline static const Statement<> update = {std::string("update ") + Schema<Table>::name()};

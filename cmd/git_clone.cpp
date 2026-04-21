@@ -4,6 +4,8 @@
 #include <spdlog/spdlog.h>
 #include <fmt/ranges.h>
 
+#define f(...)    fmt::format(__VA_ARGS__)
+#define ferr(...) std::runtime_error(fmt::format(__VA_ARGS__))
 namespace fs = std::filesystem;
 
 static std::string extract_host_and_path(const std::string &url) {

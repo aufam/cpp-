@@ -179,6 +179,36 @@ namespace cppxx::sql::sqlite3 {
             }
         }
 
+        void begin_transaction() override {
+            char *errmsg = nullptr;
+            int   ret    = sqlite3_exec(db, "BEGIN TRANSACTION", nullptr, nullptr, &errmsg);
+            if (ret != SQLITE_OK) {
+                std::string content = errmsg ? errmsg : "";
+                sqlite3_free(errmsg);
+                throw error("Failed to begin transaction", content, "BEGIN TRANSACTION", ret);
+            }
+        }
+
+        void commit() override {
+            char *errmsg = nullptr;
+            int   ret    = sqlite3_exec(db, "COMMIT", nullptr, nullptr, &errmsg);
+            if (ret != SQLITE_OK) {
+                std::string content = errmsg ? errmsg : "";
+                sqlite3_free(errmsg);
+                throw error("Failed to commit transaction", content, "COMMIT", ret);
+            }
+        }
+
+        void cancel() override {
+            char *errmsg = nullptr;
+            int   ret    = sqlite3_exec(db, "ROLLBACK", nullptr, nullptr, &errmsg);
+            if (ret != SQLITE_OK) {
+                std::string content = errmsg ? errmsg : "";
+                sqlite3_free(errmsg);
+                throw error("Failed to cancel transaction", content, "ROLLBACK", ret);
+            }
+        }
+
         template <typename Params, typename Row>
         Rows<Row> operator()(const Statement<Params, Row> &statement) {
             int ret = sqlite3_prepare_v2(db, statement.query.c_str(), -1, &stmt, nullptr);

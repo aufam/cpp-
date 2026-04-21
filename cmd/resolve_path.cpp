@@ -4,6 +4,8 @@
 #include <filesystem>
 #include <unordered_set>
 
+#define f(...)    fmt::format(__VA_ARGS__)
+#define ferr(...) std::runtime_error(fmt::format(__VA_ARGS__))
 namespace fs = std::filesystem;
 
 static fs::path get_top_level_path_from_tar(const std::string &tar_file) {
@@ -16,7 +18,7 @@ static fs::path get_top_level_path_from_tar(const std::string &tar_file) {
     cppxx::defer _    = [&]() { pclose(pipe); };
 
     if (!pipe)
-        throw std::runtime_error(fmt::format("Failed to run tar command for {:?}", tar_file));
+        throw ferr("Failed to run tar command for {:?}", tar_file);
 
     char buffer[4096];
     while (fgets(buffer, sizeof(buffer), pipe)) {
@@ -30,15 +32,11 @@ static fs::path get_top_level_path_from_tar(const std::string &tar_file) {
     }
 
     if (result.empty())
-        throw std::runtime_error(fmt::format("Failed to get the top level path from {:?}", tar_file));
+        throw ferr("Failed to get the top level path from {:?}", tar_file);
 
     // TODO: what if the tar_file has multiple paths
     if (result.size() > 1)
-        throw std::runtime_error(
-            fmt::format(
-                "Multiple top level paths from {:?} are not supported. The paths are: {}", tar_file, fmt::join(result, " ")
-            )
-        );
+        throw ferr("Multiple top level paths from {:?} are not supported. The paths are: {}", tar_file, fmt::join(result, " "));
 
     return result.front();
 }
@@ -69,7 +67,7 @@ std::string resolve_path(const std::string &cache, const std::string &path_str) 
 
         spdlog::trace("RUN {}", cmd);
         if (int res = std::system(cmd.c_str()); res)
-            throw std::runtime_error(fmt::format("Failed to download archive from {:?}, return code: {}", path_str, res));
+            throw ferr("Failed to download archive from {:?}, return code: {}", path_str, res);
 
         return resolve_path(cache, out.string());
     }
@@ -87,7 +85,7 @@ std::string resolve_path(const std::string &cache, const std::string &path_str) 
             } else if (extension == ".xz") {
                 return "-xJf";
             } else {
-                throw std::runtime_error(fmt::format("Unsupported archive type {:?}", path_str));
+                throw ferr("Unsupported archive type {:?}", path_str);
             }
         };
 
@@ -101,20 +99,34 @@ std::string resolve_path(const std::string &cache, const std::string &path_str) 
             );
             spdlog::debug("RUN {}", cmd);
             if (int res = std::system(cmd.c_str()); res)
-                throw std::runtime_error(fmt::format("Failed to extract {:?}, return code: {}", path_str, res));
+                throw ferr("Failed to extract {:?}, return code: {}", path_str, res);
         }
 
         return resolve_path(cache, extract_path.string());
     }
 
     if (std::string cmd = fmt::format("[ -d \"{}\" ]", path.string()); std::system(cmd.c_str()))
-        throw std::runtime_error(fmt::format("{:?} does not exist or unresolvable", path_str));
+        throw ferr("{:?} does not exist or unresolvable", path_str);
 
     return path_str;
 }
 
-std::vector<std::string> expand_path(const std::string &path) {
-    std::string cmd = fmt::format("printf '%s\\n' {}", path);
+std::vector<std::string> expand_path(const std::string &working_dir, std::vector<std::string> sources) {
+    for (auto &src : sources) {
+        size_t pos = 0;
+        while ((pos = src.find(' ', pos)) != std::string::npos) {
+            src.replace(pos, 1, "\\ ");
+            pos += 2;
+        }
+    }
+
+    std::string cmd = fmt::format(
+        "cd \"{}\" "
+        "&& printf '%s\\n' {}",
+        working_dir,
+        fmt::join(sources, " ")
+    );
+
     spdlog::debug("Expand path: {}", cmd);
     auto         pipe = popen(cmd.c_str(), "r");
     cppxx::defer _    = [&]() { pclose(pipe); };
@@ -126,8 +138,8 @@ std::vector<std::string> expand_path(const std::string &path) {
         buf.pop_back();
 
         fs::path entry = buf;
-        if (!fs::exists(entry)) {
-            throw std::runtime_error(fmt::format("unable to expand {:?}: {:?} does not exist", path));
+        if (!fs::exists(fs::path(working_dir) / entry)) {
+            throw ferr("Expand failed: {:?} does not exist in {:?}", entry.string(), working_dir);
         }
         res.push_back(entry.string());
     }

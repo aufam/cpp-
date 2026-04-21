@@ -9,6 +9,28 @@
 
 struct CompileCommand;
 
+struct Target {
+    cppxx::Tag<std::string> id  = "toml,json:`id`";
+    cppxx::Tag<std::string> cpp = {"toml,json:`c++,skipmissing`", "c++"};
+    cppxx::Tag<std::string> c   = {"toml,json:`c,skipmissing`", "c"};
+
+    static Target Release() {
+        Target t;
+        t.id()  = "release";
+        t.cpp() = "c++ -O3 -DNDEBUG";
+        t.c()   = "cc -O3 -DNDEBUG";
+        return t;
+    }
+
+    static Target Debug() {
+        Target t;
+        t.id()  = "debug";
+        t.cpp() = "c++ -g";
+        t.c()   = "cc -g";
+        return t;
+    }
+};
+
 struct Package {
     cppxx::Tag<std::string> name    = "toml,json:`name`";
     cppxx::Tag<std::string> version = "toml,json:`version,skipmissing,omitempty`";
@@ -28,37 +50,12 @@ struct Dependency {
     cppxx::Tag<bool>                     optional         = "toml,json:`optional,skipmissing,omitempty`";
     cppxx::Tag<std::optional<bool>>      default_features = "toml:`default-features,skipmissing,omitempty`"
                                                             "json:`defaultFeatures,skipmissing,omitempty`";
-};
 
-struct Target {
     cppxx::Tag<std::vector<std::string>> src        = "toml,json:`src,skipmissing,omitempty`";
     cppxx::Tag<std::vector<std::string>> inc        = "toml,json:`inc,skipmissing,omitempty`";
     cppxx::Tag<std::vector<std::string>> flags      = "toml,json:`flags,skipmissing,omitempty`";
     cppxx::Tag<std::vector<std::string>> link_flags = "toml:`link-flags,skipmissing,omitempty`"
                                                       "json:`linkFlags,skipmissing,omitempty`";
-
-    cppxx::Tag<std::vector<std::string>> working_dirs = "json:`workingDirs,skipmissing,omitempty`";
-
-    Target &operator+=(const Target &other);
-
-    Target operator+(const Target &other) const {
-        Target self = *this;
-        self += other;
-        return self;
-    }
-
-    void apply_dependency_path(const std::unordered_map<std::string, std::string> &working_dirs);
-
-    void collect_compile_commands(
-        const std::string              &cache,
-        const Package                  &package,
-        const std::string              &name,
-        const std::vector<std::string> &flags,
-        std::vector<CompileCommand>    &commands
-    ) const;
-
-    void collect_flags(std::vector<std::string> &flags, std::vector<std::string> &public_flags) const;
-    void collect_link_flags(std::vector<std::string> &link_flags) const;
 };
 
 struct CompileCommand {
@@ -70,18 +67,20 @@ struct CompileCommand {
     void compile() const;
 };
 
-struct Context {
-    using Dep  = std::variant<std::string, Dependency>;
-    using Feat = std::variant<std::vector<std::string>, Target>;
+struct Project {
+    using Dep = std::variant<std::string, Dependency>;
 
-    cppxx::Tag<std::unordered_map<std::string, Context>> packages     = "toml:`packages,skipmissing,omitempty`";
-    cppxx::Tag<Package>                                  package      = "toml,json:`package`";
-    cppxx::Tag<std::unordered_map<std::string, Dep>>     dependencies = "toml,json:`dependencies,skipmissing,omitempty`";
+    struct Targets {
+        cppxx::Tag<Target> release = {"toml,json:`release,skipmissing`", Target::Release()};
+        cppxx::Tag<Target> debug   = {"toml,json:`debug,skipmissing", Target::Debug()};
+    };
+    cppxx::Tag<Targets> targets = "toml,json:`targets,skipmissing`";
 
+    cppxx::Tag<std::unordered_map<std::string, Project>> packages = "toml:`packages,skipmissing,omitempty`";
+    cppxx::Tag<Package>                                  package  = "toml,json:`package`";
+
+    cppxx::Tag<std::unordered_map<std::string, Dep>> dependencies = "toml,json:`dependencies,skipmissing,omitempty`";
     cppxx::Tag<std::unordered_map<std::string, std::vector<std::string>>> features = "toml,json:`features,skipmissing,omitempty`";
-    cppxx::Tag<std::unordered_map<std::string, Feat>>                     targets  = "toml,json:`targets,skipmissing,omitempty`";
-    cppxx::Tag<std::optional<Target>>                                     lib      = "toml,json:`lib,skipmissing,omitempty`";
-    cppxx::Tag<std::vector<Target>>                                       bin      = "toml,json:`bin,skipmissing,omitempty`";
 
     cppxx::Tag<std::string> cache               = "opt:`cache,env=CPPXX_CACHE`";
     cppxx::Tag<bool>        no_default_features = "opt:`no-default-features,help=Disable default features`";
@@ -91,29 +90,20 @@ struct Context {
     cppxx::Tag<std::vector<std::string>>    public_flags     = "json:`public_flags`";
     cppxx::Tag<std::vector<std::string>>    link_flags       = "json:`link_flags`";
 
-public:
     void build(const std::vector<std::string> &features = {});
-    void resolve_feats(const std::vector<std::string> &features = {});
 
 private:
-    void pre();
     void apply_package_placeholders();
-    void apply_workdirs(const std::string &name, Target &target);
-
-    auto resolve_workdirs(const std::string &str) -> std::pair<std::string, std::string>;
-    void resolve_remote_dep(const std::string &name, Dep &dep);
-
-    void resolve_target(const std::string &name, Target &target);
-
-    Target &convert_feat(Context::Feat &feat);
+    void resolve_remote_dep(const std::string &name, Dependency &dep);
+    void collect_meta(const std::string &name, Dependency &dep);
 };
 
-Dependency &convert_dep(Context::Dep &dep);
+Dependency &convert_dep(Project::Dep &dep);
 
 std::string resolve_path(const std::string &cache, const std::string &path);
 std::string git_clone(const std::string &cache, const std::string &git, const std::string &tag);
 
-std::vector<std::string> expand_path(const std::string &pattern);
+std::vector<std::string> expand_path(const std::string &working_dir, std::vector<std::string> sources);
 
 void string_replace(std::string &str, const std::string &key, const std::string &value);
 void push_unique(std::vector<std::string> &v, const std::string &str);
