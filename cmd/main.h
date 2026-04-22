@@ -57,6 +57,8 @@ struct Dependency {
     cppxx::Tag<std::vector<std::string>> link_flags = "toml:`link-flags,skipmissing,omitempty`"
                                                       "json:`linkFlags,skipmissing,omitempty`";
 
+    cppxx::Tag<std::string> pre = "toml,json:`pre,skipmissing,omitempty`";
+
     Dependency &operator+=(const Dependency &other);
     bool        empty() const;
 };

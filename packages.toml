@@ -138,8 +138,10 @@ name = "httplib"
 [httplib.lib]
 git = "https://github.com/yhirose/cpp-httplib"
 tag = "v{version}"
-inc = ["public:"]
+src = ["build/httplib.cc"]
+inc = ["public:build"]
 link-flags = ["-lpthread"]
+pre = "python3 split.py -o build"
 
 [httplib.dependencies]
 ssl = { flags = ["public:-DCPPHTTPLIB_OPENSSL_SUPPORT"], link-flags = ["-lssl", "-lcrypto"], optional = true }
@@ -183,11 +185,20 @@ name = "onnx"
 [onnx.lib]
 url = "https://github.com/microsoft/onnxruntime/releases/download/v{version}/onnxruntime-linux-x64-{version}.tgz"
 
-['onnx-gpu'.package]
-name = "onnx-gpu"
+[onnx.dependencies]
+default = { link-flags = ["{working_dir}lib/libonnxruntime.so.{version}"] }
+cuda = {
+    url = "https://github.com/microsoft/onnxruntime/releases/download/v{version}/onnxruntime-linux-x64-gpu-{version}.tgz",
+    link-flags = ["{working_dir}lib/libonnxruntime.so.{version}"]
+}
 
-['onnx-gpu'.lib]
+
+['onnx-cuda'.package]
+name = "onnx-cuda"
+
+['onnx-cuda'.lib]
 url = "https://github.com/microsoft/onnxruntime/releases/download/v{version}/onnxruntime-linux-x64-gpu-{version}.tgz"
+link-flags = ["{working_dir}lib/libonnxruntime.so.{version}"]
 
 
 #

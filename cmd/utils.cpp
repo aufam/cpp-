@@ -65,6 +65,7 @@ void Project::apply_package_placeholders() {
             string_replace(str, "version", version);
         for (auto &str : d.link_flags())
             string_replace(str, "version", version);
+        string_replace(d.pre(), "version", version);
 
         string_replace(d.version(), "name", name);
         string_replace(d.path(), "name", name);
@@ -83,6 +84,7 @@ void Project::apply_package_placeholders() {
             string_replace(str, "name", name);
         for (auto &str : d.link_flags())
             string_replace(str, "name", name);
+        string_replace(d.pre(), "name", name);
 
         string_replace(d.version(), "edition", edition);
         string_replace(d.path(), "edition", edition);
@@ -101,6 +103,7 @@ void Project::apply_package_placeholders() {
             string_replace(str, "edition", edition);
         for (auto &str : d.link_flags())
             string_replace(str, "edition", edition);
+        string_replace(d.pre(), "edition", edition);
     };
     apply_dep(lib());
 

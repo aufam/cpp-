@@ -50,7 +50,8 @@
         "src": { "type": "array", "items": { "type": "string" } },
         "inc": { "type": "array", "items": { "type": "string" } },
         "flags": { "type": "array", "items": { "type": "string" } },
-        "link-flags": { "type": "array", "items": { "type": "string" } }
+        "link-flags": { "type": "array", "items": { "type": "string" } },
+        "pre": { "type": "string" }
       },
       "oneOf": [
         {
@@ -105,6 +106,8 @@
     },
 
     "package": { "$ref": "#/$defs/package" },
+
+    "lib": { "$ref": "#/$defs/dependency" },
 
     "dependencies": {
       "type": "object",

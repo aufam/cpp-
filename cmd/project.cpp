@@ -44,16 +44,24 @@ void Project::build(const std::vector<std::string> &features, bool subpackage) {
             lib().inc() = {"public:include"};
     }
 
+    std::vector<std::string> resolved;
     for (auto &[name, dep] : dependencies()) {
+        auto &d = convert_dep(dep);
+        if (name == "default" && no_default_features())
+            continue;
+        if (d.optional() && std::find(features.begin(), features.end(), name) == features.end())
+            continue;
+
         try {
-            resolve_remote_dep(name, convert_dep(dep));
+            resolve_remote_dep(name, d);
         } catch (const std::exception &e) {
             throw ferr("Error building dependency `{}` of package `{}`: {}", name, package().name(), e.what());
         }
+        resolved.push_back(name);
     }
 
-    for (auto &[name, dep] : dependencies()) {
-        auto &d = convert_dep(dep);
+    for (auto &name : resolved) {
+        auto &d = convert_dep(dependencies().at(name));
         if (d.empty())
             continue;
         try {
@@ -102,7 +110,10 @@ void Project::resolve_remote_dep(const std::string &name, Dependency &d) {
         if (it == packages().end())
             throw std::runtime_error("Cannot find `" + name + "` in the package list");
 
-        auto p                = it->second;
+        auto p = it->second;
+        if (p.lib().empty())
+            throw std::runtime_error("The package `" + name + "` does not have a library target");
+
         p.package().version() = d.version();
         auto &lib             = build_subpackage(p);
         lib.version()         = d.version();
@@ -129,6 +140,13 @@ void Project::collect_meta(const std::string &name, Dependency &d) {
     fs::path working_dir = fs::path(d.path()) / d.subdir();
     if (working_dir.empty())
         throw ferr("working_dir is empty for dep={}", name);
+
+    if (!d.pre().empty()) {
+        spdlog::info("running pre command for dep={}: {}", name, d.pre());
+        std::string cmd = fmt::format("cd '{}' && {}", working_dir.string(), d.pre());
+        if (std::system(cmd.c_str()) != 0)
+            throw ferr("pre command failed for dep={}: {}", name, d.pre());
+    }
 
     if (d.src().empty() && fs::is_directory(working_dir / "src"))
         d.src() = {"src/*"};
