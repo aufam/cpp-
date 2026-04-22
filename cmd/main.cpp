@@ -1,6 +1,7 @@
 #include <cpp++/toml/toruniina_toml.h>
 #include <cpp++/json/yy_json.h>
 #include <cpp++/cli/cli11.h>
+#include <fmt/ranges.h>
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include "main.h"

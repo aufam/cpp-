@@ -112,6 +112,9 @@ std::string resolve_path(const std::string &cache, const std::string &path_str) 
 }
 
 std::vector<std::string> expand_path(const std::string &working_dir, std::vector<std::string> sources) {
+    if (sources.empty())
+        return {};
+
     for (auto &src : sources) {
         size_t pos = 0;
         while ((pos = src.find(' ', pos)) != std::string::npos) {

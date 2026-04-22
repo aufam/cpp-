@@ -6,16 +6,11 @@
 [fmt.package]
 name = "fmt"
 
-[fmt.dependencies]
-default = {
-    git = "https://github.com/fmtlib/fmt",
-    tag = "{version}",
-    src = ["src/format.cc", "src/os.cc"],
-    inc = ["public:include"],
-}
-
-[fmt.targets]
-default = { src = ["{default}/src/format.cc", "{default}/src/os.cc"], inc = ["public:{default}/include"] }
+[fmt.lib]
+git = "https://github.com/fmtlib/fmt"
+tag = "{version}"
+src = ["src/format.cc", "src/os.cc"]
+inc = ["public:include"]
 
 
 #
@@ -24,24 +19,15 @@ default = { src = ["{default}/src/format.cc", "{default}/src/os.cc"], inc = ["pu
 [spdlog.package]
 name = "spdlog"
 
+[spdlog.lib]
+git = "https://github.com/gabime/spdlog"
+tag = "v{version}"
+src = ["src/*"]
+inc = ["public:include"]
+flags = ["public:-DSPDLOG_COMPILED_LIB"]
+
 [spdlog.dependencies]
-default = {
-    git = "https://github.com/gabime/spdlog",
-    tag = "v{version}",
-    src = ["src/*"],
-    inc = ["public:include"],
-    flags = ["public:-DSPDLOG_COMPILED_LIB"],
-}
-
-'fmt-external' = {
-    flags = ["public:-DSPDLOG_FMT_EXTERNAL"],
-    optional = true,
-}
-
-[spdlog.targets]
-default = { src = ["{default}/src/*"], inc = ["public:{default}/include"], flags = ["public:-DSPDLOG_COMPILED_LIB", "public:-DSPDLOG_FMT_EXTERNAL"] }
-fmt = { src = ["{default}/src/*"], inc = ["public:{default}/include"], flags = ["public:-DSPDLOG_COMPILED_LIB"] }
-
+'fmt-external' = { flags = ["public:-DSPDLOG_FMT_EXTERNAL"], optional = true }
 
 #
 # nlohmann_json
@@ -49,8 +35,8 @@ fmt = { src = ["{default}/src/*"], inc = ["public:{default}/include"], flags = [
 [nlohmann_json.package]
 name = "nlohmann_json"
 
-[nlohmann_json.dependencies]
-default = { path = "https://github.com/nlohmann/json/releases/download/v{version}/json.tar.xz" }
+[nlohmann_json.lib]
+url = "https://github.com/nlohmann/json/releases/download/v{version}/json.tar.xz"
 
 
 #
@@ -59,16 +45,11 @@ default = { path = "https://github.com/nlohmann/json/releases/download/v{version
 [yyjson.package]
 name = "yyjson"
 
-[yyjson.dependencies]
-default = { 
-    git = "https://github.com/ibireme/yyjson",
-    tag = "{version}",
-    src = ["src/yyjson.c"],
-    inc = ["src"],
-}
-
-[yyjson.targets]
-default = { src = ["{default}/src/yyjson.c"], inc = ["{default}/src"] }
+[yyjson.lib]
+git = "https://github.com/ibireme/yyjson"
+tag = "{version}"
+src = ["src/yyjson.c"]
+inc = ["src"]
 
 
 #
@@ -77,8 +58,9 @@ default = { src = ["{default}/src/yyjson.c"], inc = ["{default}/src"] }
 [rapidjson.package]
 name = "rapidjson"
 
-[rapidjson.dependencies]
-default = { git = "https://github.com/Tencent/rapidjson", tag = "v{version}" }
+[rapidjson.lib]
+git = "https://github.com/Tencent/rapidjson"
+tag = "v{version}"
 
 
 #
@@ -87,8 +69,9 @@ default = { git = "https://github.com/Tencent/rapidjson", tag = "v{version}" }
 ['toml++'.package]
 name = "toml++"
 
-['toml++'.dependencies]
-default = { git = "https://github.com/marzer/tomlplusplus", tag = "v{version}" }
+['toml++'.lib]
+git = "https://github.com/marzer/tomlplusplus"
+tag = "v{version}"
 
 
 #
@@ -97,8 +80,9 @@ default = { git = "https://github.com/marzer/tomlplusplus", tag = "v{version}" }
 [toml11.package]
 name = "toml11"
 
-[toml11.dependencies]
-default = { git = "https://github.com/ToruNiina/toml11", tag = "v{version}" }
+[toml11.lib]
+git = "https://github.com/ToruNiina/toml11"
+tag = "v{version}"
 
 
 #
@@ -107,8 +91,9 @@ default = { git = "https://github.com/ToruNiina/toml11", tag = "v{version}" }
 [yaml-cpp.package]
 name = "yaml-cpp"
 
-[yaml-cpp.dependencies]
-default = { git = "https://github.com/jbeder/yaml-cpp", tag = "yaml-cpp-{version}" }
+[yaml-cpp.lib]
+git = "https://github.com/jbeder/yaml-cpp"
+tag = "yaml-cpp-{version}"
 
 
 #
@@ -117,8 +102,9 @@ default = { git = "https://github.com/jbeder/yaml-cpp", tag = "yaml-cpp-{version
 [pfr.package]
 name = "pfr"
 
-[pfr.dependencies]
-default = { git = "https://github.com/boostorg/pfr", tag = "boost-{version}" }
+[pfr.lib]
+git = "https://github.com/boostorg/pfr"
+tag = "boost-{version}"
 
 
 #
@@ -127,8 +113,9 @@ default = { git = "https://github.com/boostorg/pfr", tag = "boost-{version}" }
 [magic_enum.package]
 name = "magic_enum"
 
-[magic_enum.dependencies]
-default = { git = "https://github.com/Neargye/magic_enum", tag = "v{version}" }
+[magic_enum.lib]
+git = "https://github.com/Neargye/magic_enum"
+tag = "v{version}"
 
 
 #
@@ -137,8 +124,9 @@ default = { git = "https://github.com/Neargye/magic_enum", tag = "v{version}" }
 [CLI11.package]
 name = "CLI11"
 
-[CLI11.dependencies]
-default = { git = "https://github.com/CLIUtils/CLI11", tag = "v{version}" }
+[CLI11.lib]
+git = "https://github.com/CLIUtils/CLI11"
+tag = "v{version}"
 
 
 #
@@ -147,20 +135,15 @@ default = { git = "https://github.com/CLIUtils/CLI11", tag = "v{version}" }
 [httplib.package]
 name = "httplib"
 
+[httplib.lib]
+git = "https://github.com/yhirose/cpp-httplib"
+tag = "v{version}"
+inc = ["public:"]
+link-flags = ["-lpthread"]
+
 [httplib.dependencies]
-default = {
-    git = "https://github.com/yhirose/cpp-httplib",
-    tag = "v{version}",
-    inc = ["public:"],
-    link-flags = ["-lpthread"],
-}
 ssl = { flags = ["public:-DCPPHTTPLIB_OPENSSL_SUPPORT"], link-flags = ["-lssl", "-lcrypto"], optional = true }
 zlib = { flags = ["public:-DCPPHTTPLIB_ZLIB_SUPPORT"], link-flags = ["-lz"], optional = true }
-
-[httplib.targets]
-default = { inc = ["public:{default}"], link-flags = ["-lpthread"] }
-ssl = { flags = ["public:-DCPPHTTPLIB_OPENSSL_SUPPORT"], link-flags = ["-lssl", "-lcrypto"] }
-zlib = { flags = ["public:-DCPPHTTPLIB_ZLIB_SUPPORT"], link-flags = ["-lz"] }
 
 
 #
@@ -169,11 +152,11 @@ zlib = { flags = ["public:-DCPPHTTPLIB_ZLIB_SUPPORT"], link-flags = ["-lz"] }
 [sha256.package]
 name = "sha256"
 
-[sha256.dependencies]
-default = { git = "https://github.com/LekKit/sha256", branch = "{version}" }
-
-[sha256.targets]
-default = { src = ["{default}/sha256.c"], inc = ["public:{default}"] }
+[sha256.lib]
+git = "https://github.com/LekKit/sha256"
+branch = "{version}"
+src = ["sha256.c"]
+inc = ["public:"]
 
 
 #
@@ -182,16 +165,13 @@ default = { src = ["{default}/sha256.c"], inc = ["public:{default}"] }
 [gtest.package]
 name = "gtest"
 
+[gtest.lib]
+url = "https://github.com/google/googletest/releases/download/v{version}/googletest-{version}.tar.gz"
+src = ["googletest/src/gtest-all.cc"]
+inc = ["public:googletest/include", "googletest"]
+
 [gtest.dependencies]
-default = { path = "https://github.com/google/googletest/releases/download/v{version}/googletest-{version}.tar.gz" }
-
-[gtest.targets.default]
-src = ["{default}/googletest/src/gtest-all.cc"]
-inc = ["public:{default}/googletest/include", "{default}/googletest"]
-
-[gtest.targets.'gtest-main']
-src = ["{default}/googletest/src/gtest-all.cc", "{default}/googletest/src/gtest_main.cc"]
-inc = ["public:{default}/googletest/include", "{default}/googletest"]
+'gtest-main' = { src = ["googletest/src/gtest_main.cc"] }
 
 
 #
@@ -200,13 +180,14 @@ inc = ["public:{default}/googletest/include", "{default}/googletest"]
 [onnx.package]
 name = "onnx"
 
-[onnx.dependencies]
-default = { path = "https://github.com/microsoft/onnxruntime/releases/download/v{version}/onnxruntime-linux-x64-{version}.tgz" }
-gpu = { path = "https://github.com/microsoft/onnxruntime/releases/download/v{version}/onnxruntime-linux-x64-gpu-{version}.tgz", optional = true }
+[onnx.lib]
+url = "https://github.com/microsoft/onnxruntime/releases/download/v{version}/onnxruntime-linux-x64-{version}.tgz"
 
-[onnx.targets]
-default = { link-flags = ["{default}/lib/libonnxruntime.so"], inc = ["public:{default}/include"] }
-gpu = { link-flags = ["{gpu}/lib/libonnxruntime.so"], inc = ["public:{gpu}/include"] }
+['onnx-gpu'.package]
+name = "onnx-gpu"
+
+['onnx-gpu'.lib]
+url = "https://github.com/microsoft/onnxruntime/releases/download/v{version}/onnxruntime-linux-x64-gpu-{version}.tgz"
 
 
 #
@@ -216,22 +197,21 @@ gpu = { link-flags = ["{gpu}/lib/libonnxruntime.so"], inc = ["public:{gpu}/inclu
 name = "catch2"
 edition = 14
 
-[catch2.dependencies]
-default = { git = "https://github.com/catchorg/Catch2", tag = "v{version}" }
-
-[catch2.targets.default]
+[catch2.lib]
+git = "https://github.com/catchorg/Catch2"
+tag = "v{version}"
 src = [
-    "{default}/src/catch2/*.cpp",
-    "{default}/src/catch2/benchmark/*.cpp",
-    "{default}/src/catch2/benchmark/detail/*.cpp",
-    "{default}/src/catch2/generators/*.cpp",
-    "{default}/src/catch2/interfaces/*.cpp",
-    "{default}/src/catch2/internal/*.cpp",
-    "{default}/src/catch2/matchers/*.cpp",
-    "{default}/src/catch2/matchers/internal/*.cpp",
-    "{default}/src/catch2/reporters/*.cpp",
+    "src/catch2/*.cpp",
+    "src/catch2/benchmark/*.cpp",
+    "src/catch2/benchmark/detail/*.cpp",
+    "src/catch2/generators/*.cpp",
+    "src/catch2/interfaces/*.cpp",
+    "src/catch2/internal/*.cpp",
+    "src/catch2/matchers/*.cpp",
+    "src/catch2/matchers/internal/*.cpp",
+    "src/catch2/reporters/*.cpp",
 ]
-inc = ["public:{default}/src"]
+inc = ["public:src"]
 
 
 #
@@ -240,13 +220,14 @@ inc = ["public:{default}/src"]
 [ftxui.package]
 name = "ftxui"
 
-[ftxui.dependencies]
-default = { git = "http://github.com/ArthurSonzogni/FTXUI", tag = "v{version}" }
+[ftxui.lib]
+git = "http://github.com/ArthurSonzogni/FTXUI"
+tag = "v{version}"
 
-[ftxui.targets]
-screen = { src = ["{default}/src/screen/*.cpp"], inc = ["public:{default}/include"] }
-dom = { src = ["{default}/src/dom/*.cpp"], inc = ["public:{default}/include"] }
-component = { src = ["{default}/src/component/*.cpp"], inc = ["public:{default}/include"] }
+[ftxui.dependencies]
+screen = { src = ["src/screen/*.cpp"], optional = true }
+dom = { src = ["src/dom/*.cpp"], optional = true }
+component = { src = ["src/component/*.cpp"], optional = true }
 
 [ftxui.features]
 default = ["screen", "dom", "component"]
@@ -259,11 +240,10 @@ default = ["screen", "dom", "component"]
 name = "async_simple"
 edition = 20
 
-[async_simple.dependencies]
-default = { git = "https://github.com/alibaba/async_simple", tag = "v{version}"}
-
-[async_simple.targets]
-default = { inc = ["public:{default}"] }
+[async_simple.lib]
+git = "https://github.com/alibaba/async_simple"
+tag = "v{version}"
+inc = ["public:"]
 
 
 #
@@ -272,23 +252,21 @@ default = { inc = ["public:{default}"] }
 [cpptrace.package]
 name = "cpptrace"
 
-[cpptrace.dependencies]
-default = { git = "https://github.com/jeremy-rifkin/cpptrace", tag = "v{version}" }
-
-[cpptrace.targets.default]
+[cpptrace.lib]
+git = "https://github.com/jeremy-rifkin/cpptrace"
+tag = "v{version}"
 src = [
-    "{default}/src/*.cpp",
-    "{default}/src/binary/*.cpp",
-    "{default}/src/demangle/*.cpp",
-    "{default}/src/jit/*.cpp",
-    "{default}/src/platform/*.cpp",
-    "{default}/src/snippets/*.cpp",
-    "{default}/src/symbols/*.cpp",
-    "{default}/src/unwind/*.cpp",
-    "{default}/src/utils/*.cpp",
-    "{default}/src/utils/io/*.cpp",
+    "src/*.cpp",
+    "src/binary/*.cpp",
+    "src/demangle/*.cpp",
+    "src/jit/*.cpp",
+    "src/platform/*.cpp",
+    "src/snippets/*.cpp",
+    "src/symbols/*.cpp",
+    "src/unwind/*.cpp",
+    "src/utils/*.cpp",
+    "src/utils/io/*.cpp",
 ]
-inc = ["public:{default}/include"]
 
 
 #
@@ -297,31 +275,30 @@ inc = ["public:{default}/include"]
 [redis.package]
 name = "redis"
 
-[redis.dependencies]
-default = { git = "https://github.com/sewenew/redis-plus-plus", tag = "{version}" }
-
-[redis.targets.default]
+[redis.lib]
+git = "https://github.com/sewenew/redis-plus-plus"
+tag = "{version}"
 src = [
-    "{default}/src/sw/redis++/command.cpp",
-    "{default}/src/sw/redis++/command_options.cpp",
-    "{default}/src/sw/redis++/connection.cpp",
-    "{default}/src/sw/redis++/connection_pool.cpp",
-    "{default}/src/sw/redis++/crc16.cpp",
-    "{default}/src/sw/redis++/errors.cpp",
-    "{default}/src/sw/redis++/pipeline.cpp",
-    "{default}/src/sw/redis++/redis.cpp",
-    "{default}/src/sw/redis++/redis_cluster.cpp",
-    "{default}/src/sw/redis++/redis_uri.cpp",
-    "{default}/src/sw/redis++/reply.cpp",
-    "{default}/src/sw/redis++/sentinel.cpp",
-    "{default}/src/sw/redis++/shards.cpp",
-    "{default}/src/sw/redis++/shards_pool.cpp",
-    "{default}/src/sw/redis++/subscriber.cpp",
-    "{default}/src/sw/redis++/transaction.cpp",
-    "{default}/src/sw/redis++/patterns/redlock.cpp",
+    "src/sw/redis++/command.cpp",
+    "src/sw/redis++/command_options.cpp",
+    "src/sw/redis++/connection.cpp",
+    "src/sw/redis++/connection_pool.cpp",
+    "src/sw/redis++/crc16.cpp",
+    "src/sw/redis++/errors.cpp",
+    "src/sw/redis++/pipeline.cpp",
+    "src/sw/redis++/redis.cpp",
+    "src/sw/redis++/redis_cluster.cpp",
+    "src/sw/redis++/redis_uri.cpp",
+    "src/sw/redis++/reply.cpp",
+    "src/sw/redis++/sentinel.cpp",
+    "src/sw/redis++/shards.cpp",
+    "src/sw/redis++/shards_pool.cpp",
+    "src/sw/redis++/subscriber.cpp",
+    "src/sw/redis++/transaction.cpp",
+    "src/sw/redis++/patterns/redlock.cpp",
 ]
 inc = [
-    "public:{default}/src",
-    "public:{default}/src/sw/redis++/no_tls",
-    "public:{default}/src/sw/redis++/cxx17",
+    "public:src",
+    "public:src/sw/redis++/no_tls",
+    "public:src/sw/redis++/cxx17",
 ]

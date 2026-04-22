@@ -33,6 +33,16 @@ void Project::build(const std::vector<std::string> &features) {
 
     apply_package_placeholders();
 
+    if (!lib().empty())
+        resolve_remote_dep(package().name(), lib());
+    else {
+        fs::path working_dir = fs::current_path();
+        if (lib().src().empty() && fs::is_directory(working_dir / "src"))
+            lib().src() = {"src/*"};
+        if (lib().inc().empty() && fs::is_directory(working_dir / "include"))
+            lib().inc() = {"public:include"};
+    }
+
     for (auto &[name, dep] : dependencies()) {
         try {
             resolve_remote_dep(name, convert_dep(dep));
@@ -40,10 +50,26 @@ void Project::build(const std::vector<std::string> &features) {
             throw ferr("Error building dependency `{}` of package `{}`: {}", name, package().name(), e.what());
         }
     }
+
+    for (auto &[name, dep] : dependencies()) {
+        auto &d = convert_dep(dep);
+        if (d.empty())
+            continue;
+        try {
+            collect_meta(name, d);
+        } catch (const std::exception &e) {
+            throw ferr("Error collecting meta of dependency `{}` of package `{}`: {}", name, package().name(), e.what());
+        }
+    }
 }
 
 void Project::resolve_remote_dep(const std::string &name, Dependency &d) {
-    if (!d.path().empty()) {
+    if (d.empty()) {
+        lib() += d;
+    } else if (!d.url().empty()) {
+        spdlog::info("resolving path of {}: {}", name, d.url());
+        d.path() = resolve_path(cache(), d.url());
+    } else if (!d.path().empty()) {
         spdlog::info("resolving path of {}: {}", name, d.path());
         d.path() = resolve_path(cache(), d.path());
     } else if (!d.git().empty()) {
@@ -64,29 +90,15 @@ void Project::resolve_remote_dep(const std::string &name, Dependency &d) {
         p.package().version()   = d.version();
         p.targets()             = targets();
 
-        if (p.dependencies().find("default") != p.dependencies().end()) {
-            p.apply_package_placeholders();
-            resolve_remote_dep("default", convert_dep(p.dependencies().at("default")));
-            return;
-            // TODO: features?
-        } else {
-            try {
-                p.build(d.features());
-            } catch (const std::exception &e) {
-                throw ferr("Error building dependency package={} `{}`: {}", package().name(), name, e.what());
-            }
-
-            compile_commands().insert(compile_commands().end(), p.compile_commands().begin(), p.compile_commands().end());
-            public_inc().insert(public_inc().end(), p.public_inc().begin(), p.public_inc().end());
-            public_flags().insert(public_flags().end(), p.public_flags().begin(), p.public_flags().end());
-            link_flags().insert(link_flags().end(), p.link_flags().begin(), p.link_flags().end());
-
-            // TODO: handle default target
-            return;
+        try {
+            p.build(d.features());
+        } catch (const std::exception &e) {
+            throw ferr("Error building dependency package={} `{}`: {}", p.package().name(), name, e.what());
         }
+        p.lib().version() = d.version();
+        d                 = std::move(p.lib());
+        resolve_remote_dep(name, d);
     }
-
-    collect_meta(name, d);
 }
 
 void Project::collect_meta(const std::string &name, Dependency &d) {
@@ -97,41 +109,40 @@ void Project::collect_meta(const std::string &name, Dependency &d) {
     if (!feature_name.empty())
         feature_name = "-";
 
-    auto &target = targets().release();
-
-    fs::path cache       = this->cache();
     fs::path working_dir = fs::path(d.path()) / d.subdir();
-    if (working_dir.empty())
-        working_dir = fs::current_path();
-    fs::path build_dir = cache / "build" / target.id() / package().name() / feature_name;
+    if (!working_dir.empty()) {
+        if (d.src().empty() && fs::is_directory(working_dir / "src"))
+            d.src() = {"src/*"};
+        if (d.inc().empty() && fs::is_directory(working_dir / "include"))
+            d.inc() = {"public:include"};
+    }
 
-    if (d.src().empty() && fs::is_directory(working_dir / "src"))
-        d.src() = {"src/*"};
-    if (d.inc().empty() && fs::is_directory(working_dir / "include"))
-        d.inc() = {"public:include"};
+    auto    &target    = targets().release();
+    fs::path cache     = this->cache();
+    fs::path build_dir = cache / "build" / target.id() / (name + "-" + d.version()) / feature_name;
 
     std::vector<std::string> flags;
     for (auto &str : d.flags()) {
         if (str.rfind("public:", 0) == 0) {
             auto f = str.substr(std::string("public:").size());
-            flags.push_back(f);
-            public_flags().push_back(f);
+            push_unique(flags, f);
+            push_unique(lib().flags(), f);
         } else {
-            flags.push_back(str);
+            push_unique(flags, str);
         }
     }
     for (auto &str : d.inc()) {
         if (str.rfind("public:", 0) == 0) {
             auto inc = "-I" + (working_dir / str.substr(std::string("public:").size())).string();
-            flags.push_back(inc);
-            public_inc().push_back(inc);
+            push_unique(flags, inc);
+            push_unique(lib().flags(), inc);
         } else {
-            flags.push_back("-I" + (working_dir / str).string());
+            push_unique(flags, "-I" + (working_dir / str).string());
         }
     }
     for (auto &str : d.link_flags()) {
         string_replace(str, "working_dir", working_dir.string());
-        link_flags().push_back(str);
+        push_unique(lib().link_flags(), str);
     }
 
     spdlog::debug("base={:?} src={:?}", working_dir.string(), d.src());
@@ -141,6 +152,7 @@ void Project::collect_meta(const std::string &name, Dependency &d) {
             CompileCommand cc;
             cc.directory() = build_dir.string();
             cc.output()    = entry.string() + ".o";
+            cc.depfile()   = entry.string() + ".d";
             cc.file()      = (working_dir / entry).string();
             if (auto ext = entry.extension(); ext == ".cpp" || ext == ".cxx" || ext == ".cc" || ext == ".cppm") {
                 if (ext == ".cppm" && package().edition() < 20)
@@ -149,95 +161,31 @@ void Project::collect_meta(const std::string &name, Dependency &d) {
                     );
 
                 cc.command() =
-                    f("{} -std=c++{} {} -o {} -c {}",
+                    f("{} -std=c++{} {} -o '{}' -c '{}' -MMD -MP -MF '{}'",
                       target.cpp(),
                       package().edition(),
                       fmt::join(flags, " "),
                       cc.output(),
-                      cc.file());
+                      cc.file(),
+                      cc.depfile());
 
                 cc.compile();
-                link_flags().push_back((working_dir / cc.output()).string());
+                push_unique(lib().link_flags(), (working_dir / cc.output()).string());
                 compile_commands().push_back(cc);
             } else if (ext == ".c") {
-                cc.command() = f("{} {} -o {} -c {}", target.c(), fmt::join(flags, " "), cc.output(), cc.file());
+                cc.command() =
+                    f("{} {} -o '{}' -c '{}' -MMD -MP -MF '{}'",
+                      target.c(),
+                      fmt::join(flags, " "),
+                      cc.output(),
+                      cc.file(),
+                      cc.depfile());
                 cc.compile();
-                link_flags().push_back((working_dir / cc.output()).string());
+                push_unique(lib().link_flags(), (working_dir / cc.output()).string());
                 compile_commands().push_back(cc);
             }
         }
     } catch (std::exception &e) {
         throw ferr("Cannot resolve dep={:?}, src={}: {}", name, d.src(), e.what());
-    }
-}
-
-void Project::apply_package_placeholders() {
-    auto &name    = package().name();
-    auto &version = package().version();
-    auto  edition = std::to_string(package().edition());
-
-    for (auto &[_, dep] : dependencies()) {
-        auto &d = convert_dep(dep);
-        string_replace(d.version(), "version", version);
-        string_replace(d.path(), "version", version);
-        string_replace(d.url(), "version", version);
-        string_replace(d.git(), "version", version);
-        string_replace(d.branch(), "version", version);
-        string_replace(d.tag(), "version", version);
-        string_replace(d.subdir(), "version", version);
-        for (auto &str : d.features())
-            string_replace(str, "version", version);
-        for (auto &str : d.src())
-            string_replace(str, "version", version);
-        for (auto &str : d.inc())
-            string_replace(str, "version", version);
-        for (auto &str : d.flags())
-            string_replace(str, "version", version);
-        for (auto &str : d.link_flags())
-            string_replace(str, "version", version);
-
-        string_replace(d.version(), "name", name);
-        string_replace(d.path(), "name", name);
-        string_replace(d.url(), "name", name);
-        string_replace(d.git(), "name", name);
-        string_replace(d.branch(), "name", name);
-        string_replace(d.tag(), "name", name);
-        string_replace(d.subdir(), "name", name);
-        for (auto &str : d.features())
-            string_replace(str, "name", name);
-        for (auto &str : d.src())
-            string_replace(str, "name", name);
-        for (auto &str : d.inc())
-            string_replace(str, "name", name);
-        for (auto &str : d.flags())
-            string_replace(str, "name", name);
-        for (auto &str : d.link_flags())
-            string_replace(str, "name", name);
-
-        string_replace(d.version(), "edition", edition);
-        string_replace(d.path(), "edition", edition);
-        string_replace(d.url(), "edition", edition);
-        string_replace(d.git(), "edition", edition);
-        string_replace(d.branch(), "edition", edition);
-        string_replace(d.tag(), "edition", edition);
-        string_replace(d.subdir(), "edition", edition);
-        for (auto &str : d.features())
-            string_replace(str, "edition", edition);
-        for (auto &str : d.src())
-            string_replace(str, "edition", edition);
-        for (auto &str : d.inc())
-            string_replace(str, "edition", edition);
-        for (auto &str : d.flags())
-            string_replace(str, "edition", edition);
-        for (auto &str : d.link_flags())
-            string_replace(str, "edition", edition);
-    }
-
-    for (auto &[_, feats] : features()) {
-        for (auto &feat : feats) {
-            string_replace(feat, "name", name);
-            string_replace(feat, "version", version);
-            string_replace(feat, "edition", edition);
-        }
     }
 }

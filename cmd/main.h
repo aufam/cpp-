@@ -58,13 +58,17 @@ struct Dependency {
                                                       "json:`linkFlags,skipmissing,omitempty`";
 
     Dependency &operator+=(const Dependency &other);
+    bool        empty() const;
 };
+
+using Lib = Dependency;
 
 struct CompileCommand {
     cppxx::Tag<std::string> file      = "json:`file`";
     cppxx::Tag<std::string> directory = "json:`directory`";
     cppxx::Tag<std::string> command   = "json:`command`";
     cppxx::Tag<std::string> output    = "json:`output`";
+    cppxx::Tag<std::string> depfile   = "";
 
     void compile() const;
 };
@@ -82,15 +86,13 @@ struct Project {
     cppxx::Tag<Package>                                  package  = "toml,json:`package`";
 
     cppxx::Tag<std::unordered_map<std::string, Dep>> dependencies = "toml,json:`dependencies,skipmissing,omitempty`";
+    cppxx::Tag<Lib>                                  lib          = "toml,json:`lib,skipmissing`";
     cppxx::Tag<std::unordered_map<std::string, std::vector<std::string>>> features = "toml,json:`features,skipmissing,omitempty`";
 
     cppxx::Tag<std::string> cache               = "opt:`cache,env=CPPXX_CACHE`";
     cppxx::Tag<bool>        no_default_features = "opt:`no-default-features,help=Disable default features`";
 
     cppxx::Tag<std::vector<CompileCommand>> compile_commands = "json:`compile_commands`";
-    cppxx::Tag<std::vector<std::string>>    public_inc       = "json:`public_inc`";
-    cppxx::Tag<std::vector<std::string>>    public_flags     = "json:`public_flags`";
-    cppxx::Tag<std::vector<std::string>>    link_flags       = "json:`link_flags`";
 
     void build(const std::vector<std::string> &features = {});
 
@@ -108,3 +110,5 @@ std::string git_clone(const std::string &cache, const std::string &git, const st
 std::vector<std::string> expand_path(const std::string &working_dir, std::vector<std::string> sources);
 
 void string_replace(std::string &str, const std::string &key, const std::string &value);
+void push_unique(std::vector<std::string> &vec, const std::string &value);
+void push_unique(std::vector<std::string> &vec, const std::vector<std::string> &values);
