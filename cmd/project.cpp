@@ -14,7 +14,7 @@ void Project::build(const std::vector<std::string> &features, bool subpackage) {
         throw ferr("Error building {:?}: no features specified, but `no-default-features` is set", package().name());
 
     if (features.empty())
-        return build({"default"});
+        return build({"default"}, subpackage);
 
     if (package().name().empty())
         throw ferr("Error building {:?}: name is required", package().name());
@@ -67,7 +67,7 @@ void Project::build(const std::vector<std::string> &features, bool subpackage) {
 void Project::resolve_remote_dep(const std::string &name, Dependency &d) {
     constexpr auto toml_version = cppxx::toml::toruniina_toml::spec::v(1, 1, 0);
 
-    auto build_subpackage = [&](Project &p) -> Dependency {
+    auto build_subpackage = [&](Project &p) -> Dependency & {
         p.cache()               = cache();
         p.no_default_features() = !d.default_features().value_or(true);
         p.targets()             = targets();
@@ -104,16 +104,17 @@ void Project::resolve_remote_dep(const std::string &name, Dependency &d) {
 
         auto p                = it->second;
         p.package().version() = d.version();
-        auto lib              = build_subpackage(p);
+        auto &lib             = build_subpackage(p);
         lib.version()         = d.version();
-        d                     = std::move(p.lib());
+        d                     = std::move(lib);
         resolve_remote_dep(name, d);
         return;
     }
 
     if (auto sub = fs::path(d.path()) / d.subdir() / "cpp++.toml"; fs::exists(sub)) {
-        auto p = cppxx::toml::toruniina_toml::parse_from_file<Project>(sub.string(), toml_version);
-        d      = build_subpackage(p);
+        auto  p   = cppxx::toml::toruniina_toml::parse_from_file<Project>(sub.string(), toml_version);
+        auto &lib = build_subpackage(p);
+        d         = std::move(lib);
     }
 }
 
@@ -137,6 +138,7 @@ void Project::collect_meta(const std::string &name, Dependency &d) {
     auto    &target    = targets().release();
     fs::path cache     = this->cache();
     fs::path build_dir = cache / "build" / target.id() / (name + "-" + d.version()) / feature_name;
+    spdlog::info("build_dir={:?}", build_dir.string());
 
     std::vector<std::string> flags;
     for (auto &str : d.flags()) {
