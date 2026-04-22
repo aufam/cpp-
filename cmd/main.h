@@ -94,7 +94,7 @@ struct Project {
 
     cppxx::Tag<std::vector<CompileCommand>> compile_commands = "json:`compile_commands`";
 
-    void build(const std::vector<std::string> &features = {});
+    void build(const std::vector<std::string> &features = {}, bool subpackage = false);
 
 private:
     void apply_package_placeholders();

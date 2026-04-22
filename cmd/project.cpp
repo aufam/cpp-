@@ -3,12 +3,13 @@
 #include <fmt/ranges.h>
 #include <spdlog/spdlog.h>
 #include <filesystem>
+#include <cpp++/toml/toruniina_toml.h>
 
 #define f(...)    fmt::format(__VA_ARGS__)
 #define ferr(...) std::runtime_error(fmt::format(__VA_ARGS__))
 namespace fs = std::filesystem;
 
-void Project::build(const std::vector<std::string> &features) {
+void Project::build(const std::vector<std::string> &features, bool subpackage) {
     if (no_default_features() && features.empty())
         throw ferr("Error building {:?}: no features specified, but `no-default-features` is set", package().name());
 
@@ -35,7 +36,7 @@ void Project::build(const std::vector<std::string> &features) {
 
     if (!lib().empty())
         resolve_remote_dep(package().name(), lib());
-    else {
+    else if (!subpackage) {
         fs::path working_dir = fs::current_path();
         if (lib().src().empty() && fs::is_directory(working_dir / "src"))
             lib().src() = {"src/*"};
@@ -64,9 +65,26 @@ void Project::build(const std::vector<std::string> &features) {
 }
 
 void Project::resolve_remote_dep(const std::string &name, Dependency &d) {
+    constexpr auto toml_version = cppxx::toml::toruniina_toml::spec::v(1, 1, 0);
+
+    auto build_subpackage = [&](Project &p) -> Dependency {
+        p.cache()               = cache();
+        p.no_default_features() = !d.default_features().value_or(true);
+        p.targets()             = targets();
+        try {
+            p.build(d.features(), true);
+        } catch (const std::exception &e) {
+            throw ferr("Error building dependency package={} `{}`: {}", p.package().name(), name, e.what());
+        }
+        return p.lib();
+    };
+
     if (d.empty()) {
         lib() += d;
-    } else if (!d.url().empty()) {
+        return;
+    }
+
+    if (!d.url().empty()) {
         spdlog::info("resolving path of {}: {}", name, d.url());
         d.path() = resolve_path(cache(), d.url());
     } else if (!d.path().empty()) {
@@ -84,20 +102,18 @@ void Project::resolve_remote_dep(const std::string &name, Dependency &d) {
         if (it == packages().end())
             throw std::runtime_error("Cannot find `" + name + "` in the package list");
 
-        auto p                  = it->second;
-        p.cache()               = cache();
-        p.no_default_features() = !d.default_features().value_or(true);
-        p.package().version()   = d.version();
-        p.targets()             = targets();
-
-        try {
-            p.build(d.features());
-        } catch (const std::exception &e) {
-            throw ferr("Error building dependency package={} `{}`: {}", p.package().name(), name, e.what());
-        }
-        p.lib().version() = d.version();
-        d                 = std::move(p.lib());
+        auto p                = it->second;
+        p.package().version() = d.version();
+        auto lib              = build_subpackage(p);
+        lib.version()         = d.version();
+        d                     = std::move(p.lib());
         resolve_remote_dep(name, d);
+        return;
+    }
+
+    if (auto sub = fs::path(d.path()) / d.subdir() / "cpp++.toml"; fs::exists(sub)) {
+        auto p = cppxx::toml::toruniina_toml::parse_from_file<Project>(sub.string(), toml_version);
+        d      = build_subpackage(p);
     }
 }
 
@@ -110,12 +126,13 @@ void Project::collect_meta(const std::string &name, Dependency &d) {
         feature_name = "-";
 
     fs::path working_dir = fs::path(d.path()) / d.subdir();
-    if (!working_dir.empty()) {
-        if (d.src().empty() && fs::is_directory(working_dir / "src"))
-            d.src() = {"src/*"};
-        if (d.inc().empty() && fs::is_directory(working_dir / "include"))
-            d.inc() = {"public:include"};
-    }
+    if (working_dir.empty())
+        throw ferr("working_dir is empty for dep={}", name);
+
+    if (d.src().empty() && fs::is_directory(working_dir / "src"))
+        d.src() = {"src/*"};
+    if (d.inc().empty() && fs::is_directory(working_dir / "include"))
+        d.inc() = {"public:include"};
 
     auto    &target    = targets().release();
     fs::path cache     = this->cache();

@@ -63,7 +63,7 @@ namespace cppxx::toml::toruniina_toml {
 } // namespace cppxx::toml::toruniina_toml
 
 namespace cppxx::toml::toruniina_toml::detail {
-    std::string type(const __toml11::value &val) {
+    inline std::string type(const __toml11::value &val) {
         switch (val.type()) {
         case __toml11::value_t::empty:
             return "null";
