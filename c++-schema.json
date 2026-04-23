@@ -22,7 +22,7 @@
         },
         "edition": {
           "type": "integer",
-          "enum": [14, 17, 20, 23, 26],
+          "enum": [11, 14, 17, 20, 23, 26],
           "default": 17
         },
         "authors": {
@@ -49,6 +49,7 @@
         "default-features": { "type": "boolean", "default": true },
         "src": { "type": "array", "items": { "type": "string" } },
         "inc": { "type": "array", "items": { "type": "string" } },
+        "lib": { "type": "array", "items": { "type": "string" } },
         "flags": { "type": "array", "items": { "type": "string" } },
         "link-flags": { "type": "array", "items": { "type": "string" } },
         "pre": { "type": "string" }

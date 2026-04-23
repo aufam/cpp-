@@ -1,6 +1,7 @@
 #include <cpp++/defer.h>
 #include <spdlog/spdlog.h>
 #include <fmt/ranges.h>
+#include <fmt/color.h>
 #include <filesystem>
 #include <unordered_set>
 
@@ -13,7 +14,7 @@ static fs::path get_top_level_path_from_tar(const std::string &tar_file) {
     std::unordered_set<std::string> unique_entries;
 
     std::string command = fmt::format("tar tf \"{}\" | cut -d/ -f1 | uniq", tar_file);
-    spdlog::debug("RUN {}", command);
+    spdlog::debug("checking tar content: cmd={:?}", command);
     auto         pipe = popen(command.c_str(), "r");
     cppxx::defer _    = [&]() { pclose(pipe); };
 
@@ -57,18 +58,22 @@ std::string resolve_path(const std::string &cache, const std::string &path_str) 
         const std::string &url = path_str;
         const fs::path     out = fs::path(cache) / "src" / path;
         const fs::path     dir = out.parent_path();
-        const std::string  cmd = fmt::format(
-            "[ -f \"{0}\" ] || "
-             "(mkdir -p \"{1}\" && curl -sSfL -o \"{0}\" \"{2}\")",
-            out.string(),
-            dir.string(),
-            url
-        );
 
-        spdlog::trace("RUN {}", cmd);
-        if (int res = std::system(cmd.c_str()); res)
-            throw ferr("Failed to download archive from {:?}, return code: {}", path_str, res);
+        if (std::string cmd = fmt::format("[ -f \"{}\" ]", out.string()); std::system(cmd.c_str()) != 0) {
+            cmd = fmt::format(
+                "mkdir -p \"{0}\" && "
+                "curl -sSfL -o \"{1}\" \"{2}\"",
+                dir.string(),
+                out.string(),
+                url
+            );
 
+            fmt::print(fmt::emphasis::bold | fmt::fg(fmt::color::green), "{:>12} ", "Downloading");
+            fmt::println("{}", url);
+            spdlog::debug("downloading: cmd={:?}", cmd);
+            if (int res = std::system(cmd.c_str()); res)
+                throw ferr("Failed to download archive from {:?}, return code: {}", path_str, res);
+        }
         return resolve_path(cache, out.string());
     }
 
@@ -97,7 +102,9 @@ std::string resolve_path(const std::string &cache, const std::string &path_str) 
                 path_str,
                 get_tar_flag()
             );
-            spdlog::debug("RUN {}", cmd);
+            fmt::print(fmt::emphasis::bold | fmt::fg(fmt::color::green), "{:>12} ", "Extracting");
+            fmt::println("{}", path_str);
+            spdlog::debug("extracting: {:?}", cmd);
             if (int res = std::system(cmd.c_str()); res)
                 throw ferr("Failed to extract {:?}, return code: {}", path_str, res);
         }
@@ -130,7 +137,7 @@ std::vector<std::string> expand_path(const std::string &working_dir, std::vector
         fmt::join(sources, " ")
     );
 
-    spdlog::debug("Expand path: {}", cmd);
+    spdlog::debug("expanding: cmd={:?}", cmd);
     auto         pipe = popen(cmd.c_str(), "r");
     cppxx::defer _    = [&]() { pclose(pipe); };
 
@@ -147,6 +154,5 @@ std::vector<std::string> expand_path(const std::string &working_dir, std::vector
         res.push_back(entry.string());
     }
 
-    spdlog::debug("Expand path succeeded: {}", cmd);
     return res;
 }

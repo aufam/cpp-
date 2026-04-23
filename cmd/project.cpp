@@ -1,6 +1,7 @@
 #include "main.h"
 #include <algorithm>
 #include <fmt/ranges.h>
+#include <fmt/color.h>
 #include <spdlog/spdlog.h>
 #include <filesystem>
 #include <cpp++/toml/toruniina_toml.h>
@@ -23,6 +24,8 @@ void Project::build(const std::vector<std::string> &features, bool subpackage) {
         throw ferr("Error building {:?}: version is required", package().name());
 
     switch (package().edition()) {
+    case 11:
+    case 14:
     case 17:
     case 20:
     case 23:
@@ -34,10 +37,14 @@ void Project::build(const std::vector<std::string> &features, bool subpackage) {
 
     apply_package_placeholders();
 
+    if (!lib().version().empty())
+        throw ferr("Error building {:?}: lib version is already set to {}", package().name(), lib().version());
+
     if (!lib().empty())
         resolve_remote_dep(package().name(), lib());
     else if (!subpackage) {
         fs::path working_dir = fs::current_path();
+        lib().path()         = working_dir.string();
         if (lib().src().empty() && fs::is_directory(working_dir / "src"))
             lib().src() = {"src/*"};
         if (lib().inc().empty() && fs::is_directory(working_dir / "include"))
@@ -47,6 +54,8 @@ void Project::build(const std::vector<std::string> &features, bool subpackage) {
     std::vector<std::string> resolved;
     for (auto &[name, dep] : dependencies()) {
         auto &d = convert_dep(dep);
+        if (d.name().empty())
+            d.name() = name;
         if (name == "default" && no_default_features())
             continue;
         if (d.optional() && std::find(features.begin(), features.end(), name) == features.end())
@@ -70,15 +79,30 @@ void Project::build(const std::vector<std::string> &features, bool subpackage) {
             throw ferr("Error collecting meta of dependency `{}` of package `{}`: {}", name, package().name(), e.what());
         }
     }
+    lib().name()       = package().name();
+    lib().version()    = package().version();
+    lib().cpp_standard = package().edition();
+    lib().features()   = features;
 }
 
 void Project::resolve_remote_dep(const std::string &name, Dependency &d) {
     constexpr auto toml_version = cppxx::toml::toruniina_toml::spec::v(1, 1, 0);
 
     auto build_subpackage = [&](Project &p) -> Dependency & {
+        if (p.package().edition() > package().edition())
+            throw ferr(
+                "Error building dependency package={0:?}: {0:?} required std=c++{1} but {2:?} only supports std=c++{3}",
+                p.package().name(),
+                p.package().edition(),
+                package().name(),
+                package().edition()
+            );
+
+        p.ppackages             = &packages();
         p.cache()               = cache();
         p.no_default_features() = !d.default_features().value_or(true);
         p.targets()             = targets();
+        p.package().vars()      = package().vars();
         try {
             p.build(d.features(), true);
         } catch (const std::exception &e) {
@@ -93,21 +117,23 @@ void Project::resolve_remote_dep(const std::string &name, Dependency &d) {
     }
 
     if (!d.url().empty()) {
-        spdlog::info("resolving path of {}: {}", name, d.url());
+        spdlog::info("resolving dep={:?} url={:?}", name, d.url());
         d.path() = resolve_path(cache(), d.url());
     } else if (!d.path().empty()) {
-        spdlog::info("resolving path of {}: {}", name, d.path());
+        spdlog::info("resolving dep={:?} path={:?}", name, d.path());
         d.path() = resolve_path(cache(), d.path());
     } else if (!d.git().empty()) {
         auto &tag = d.tag().empty() ? d.branch() : d.tag();
-        spdlog::info("resolving git of {}: {} {}", name, d.git(), tag);
+        spdlog::info("resolving dep={:?} git={:?} tag={:?}", name, d.git(), tag);
         d.path() = git_clone(cache(), d.git(), tag);
     } else if (d.version().empty()) {
         throw std::runtime_error("path|git|version is not defined");
     } else {
-        spdlog::info("resolving version of {}: {}", name, d.version());
-        auto it = packages().find(name);
-        if (it == packages().end())
+        spdlog::info("resolving dep={:?} version={:?}", name, d.version());
+        auto &packages = ppackages ? *ppackages : this->packages();
+
+        auto it = packages.find(d.name().empty() ? name : d.name());
+        if (it == packages.end())
             throw std::runtime_error("Cannot find `" + name + "` in the package list");
 
         auto p = it->second;
@@ -116,7 +142,6 @@ void Project::resolve_remote_dep(const std::string &name, Dependency &d) {
 
         p.package().version() = d.version();
         auto &lib             = build_subpackage(p);
-        lib.version()         = d.version();
         d                     = std::move(lib);
         resolve_remote_dep(name, d);
         return;
@@ -130,19 +155,21 @@ void Project::resolve_remote_dep(const std::string &name, Dependency &d) {
 }
 
 void Project::collect_meta(const std::string &name, Dependency &d) {
+    const auto cpp_standard = d.cpp_standard.value_or(package().edition());
+
     std::sort(d.features().begin(), d.features().end());
     std::string feature_name = fmt::format("{}", fmt::join(d.features(), "-"));
     if (d.default_features().value_or(true))
         feature_name = "default-" + feature_name;
-    if (!feature_name.empty())
+    if (feature_name.empty())
         feature_name = "-";
 
     fs::path working_dir = fs::path(d.path()) / d.subdir();
     if (working_dir.empty())
-        throw ferr("working_dir is empty for dep={}", name);
+        throw ferr("path and subdir is empty for dep={}", name);
 
     if (!d.pre().empty()) {
-        spdlog::info("running pre command for dep={}: {}", name, d.pre());
+        spdlog::info("running pre command for package={:?} dep={:?} pre={:?}", package().name(), name, d.pre());
         std::string cmd = fmt::format("cd '{}' && {}", working_dir.string(), d.pre());
         if (std::system(cmd.c_str()) != 0)
             throw ferr("pre command failed for dep={}: {}", name, d.pre());
@@ -155,8 +182,12 @@ void Project::collect_meta(const std::string &name, Dependency &d) {
 
     auto    &target    = targets().release();
     fs::path cache     = this->cache();
-    fs::path build_dir = cache / "build" / target.id() / (name + "-" + d.version()) / feature_name;
-    spdlog::info("build_dir={:?}", build_dir.string());
+    fs::path build_dir = cache / "build" / target.id() /
+                         (name + "-" +
+                          (d.branch().empty() && d.tag().empty() ? d.version()
+                           : d.branch().empty()                  ? d.tag()
+                                                                 : d.branch())) /
+                         feature_name;
 
     std::vector<std::string> flags;
     for (auto &str : d.flags()) {
@@ -177,14 +208,20 @@ void Project::collect_meta(const std::string &name, Dependency &d) {
             push_unique(flags, "-I" + (working_dir / str).string());
         }
     }
+    for (auto &str : d.lib()) {
+        push_unique(lib().link_flags(), (working_dir / str).string());
+    }
     for (auto &str : d.link_flags()) {
-        string_replace(str, "working_dir", working_dir.string());
         push_unique(lib().link_flags(), str);
     }
 
-    spdlog::debug("base={:?} src={:?}", working_dir.string(), d.src());
     try {
         auto expanded = expand_path(working_dir.string(), d.src());
+        if (expanded.empty())
+            return;
+
+        fmt::print(fmt::emphasis::bold | fmt::fg(fmt::color::green), "{:>12} ", "Compiling");
+        fmt::println("{} v{}", d.name(), d.version());
         for (fs::path entry : expanded) {
             CompileCommand cc;
             cc.directory() = build_dir.string();
@@ -192,15 +229,13 @@ void Project::collect_meta(const std::string &name, Dependency &d) {
             cc.depfile()   = entry.string() + ".d";
             cc.file()      = (working_dir / entry).string();
             if (auto ext = entry.extension(); ext == ".cpp" || ext == ".cxx" || ext == ".cc" || ext == ".cppm") {
-                if (ext == ".cppm" && package().edition() < 20)
-                    throw ferr(
-                        "C++ modules are not supported in edition {}, but {} is used", package().edition(), entry.string()
-                    );
+                if (ext == ".cppm" && cpp_standard < 20)
+                    throw ferr("C++ modules are not supported in std=c++{}, but std=c++{} is used", cpp_standard, entry.string());
 
                 cc.command() =
                     f("{} -std=c++{} {} -o '{}' -c '{}' -MMD -MP -MF '{}'",
                       target.cpp(),
-                      package().edition(),
+                      cpp_standard,
                       fmt::join(flags, " "),
                       cc.output(),
                       cc.file(),

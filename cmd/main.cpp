@@ -9,12 +9,14 @@
 int main(int argc, char **argv) {
     auto sink = std::make_shared<spdlog::sinks::stderr_color_sink_mt>();
     spdlog::set_default_logger(std::make_shared<spdlog::logger>("cpp++", std::move(sink)));
-    spdlog::set_level(spdlog::level::trace);
+    spdlog::set_pattern("%^%l%$: %v");
 
     constexpr auto toml_version = cppxx::toml::toruniina_toml::spec::v(1, 1, 0);
 
     Project ctx;
     cppxx::cli::cli11::parse("c++ plusplus", argc, argv, ctx);
+    spdlog::set_level(spdlog::level::level_enum(ctx.log_level()));
+
     cppxx::toml::toruniina_toml::parse_from_file("./packages.toml", ctx.packages(), toml_version);
     cppxx::toml::toruniina_toml::parse_from_file("./cpp++.toml", ctx, toml_version);
 

@@ -3,6 +3,7 @@
 #include <regex>
 #include <spdlog/spdlog.h>
 #include <fmt/ranges.h>
+#include <fmt/color.h>
 
 #define f(...)    fmt::format(__VA_ARGS__)
 #define ferr(...) std::runtime_error(fmt::format(__VA_ARGS__))
@@ -52,26 +53,59 @@ static std::string normalize_git_url(const std::string &url) {
 }
 
 std::string git_clone(const std::string &cache, const std::string &git, const std::string &tag) {
-    const std::string url = normalize_git_url(git);
-    spdlog::info("url = {}", url);
+    const std::string url  = normalize_git_url(git);
     const std::string host = extract_host_and_path(url);
-    spdlog::info("host = {}", host);
 
     fs::path result_path = fs::path(cache) / "src" / (host + "-" + tag);
-    spdlog::info("result_path = {}", result_path.string());
+    spdlog::debug("url={:?} host={:?} path={:?}", url, host, result_path.string());
 
-    const std::string cmd = fmt::format(
-        "[ -d \"{0}\" ] || "
-        "(echo cloning \"{1}\" >&2 && git -c advice.detachedHead=false clone --quiet --depth 1 {2}\"{3}\" \"{0}\")",
-        result_path.string(),
-        tag.empty() ? host : host + "@" + tag,
-        tag.empty() ? "" : "--branch \"" + tag + "\" ",
-        url
-    );
+    if (!fs::is_directory(result_path)) {
+        const std::string cmd = fmt::format(
+            ""
+            "git -c advice.detachedHead=false clone --quiet --depth 1 {1}\"{2}\" \"{0}\"",
+            result_path.string(),
+            tag.empty() ? "" : "--branch \"" + tag + "\" ",
+            url
+        );
 
-    spdlog::info("cmd = {}", cmd);
-    if (int res = std::system(cmd.c_str()); res)
-        throw std::runtime_error(fmt::format("Failed to clone repo from {:?}, return code: {}", url, res));
+        fmt::print(fmt::emphasis::bold | fmt::fg(fmt::color::green), "{:>12} ", "Cloning");
+        fmt::println("{}", url);
+        spdlog::debug("git clone: cmd={:?}", cmd);
+        if (int res = std::system(cmd.c_str()); res)
+            throw std::runtime_error(fmt::format("Failed to clone repo from {:?}, return code: {}", url, res));
+    } else {
+        // check if the existing directory is a valid git repo with the correct remote and tag
+        // const std::string check_cmd = fmt::format(
+        //     "cd \"{0}\" && "
+        //     "git remote get-url origin 2>/dev/null | grep \"{1}\" && "
+        //     "(git rev-parse --abrev-ref HEAD 2>/dev/null | grep -q \"{2}\" || "
+        //     "git describe --tags --exact-match 2>/dev/null | grep -q \"{2}\")",
+        //     result_path.string(),
+        //     host,
+        //     tag.empty() ? "HEAD" : tag
+        // );
+        //
+        // spdlog::debug("checking existing repo: cmd={:?}", check_cmd);
+        // if (int res = std::system(check_cmd.c_str()); res) {
+        //     throw std::runtime_error(fmt::format(
+        //         "Existing directory {:?} is not a valid git repo with the correct remote and tag. Please remove it and try "
+        //         "again.",
+        //         result_path.string()
+        //     ));
+        // }
 
+        // check if the existing repo is dirty
+        const std::string dirty_check_cmd = fmt::format(
+            "cd \"{0}\" && "
+            "git diff --quiet 2>/dev/null && "
+            "git diff --cached --quiet 2>/dev/null",
+            result_path.string()
+        );
+
+        spdlog::debug("checking dirty repo: cmd={:?}", dirty_check_cmd);
+        if (int res = std::system(dirty_check_cmd.c_str()); res) {
+            spdlog::warn("Existing directory {:?} has uncommitted changes.", result_path.string());
+        }
+    }
     return result_path;
 }
