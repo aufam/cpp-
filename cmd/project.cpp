@@ -116,12 +116,12 @@ void Project::resolve_remote_dep(const std::string &name, Dependency &d) {
         return;
     }
 
-    if (!d.url().empty()) {
-        spdlog::info("resolving dep={:?} url={:?}", name, d.url());
-        d.path() = resolve_path(cache(), d.url());
-    } else if (!d.path().empty()) {
+    if (!d.path().empty()) {
         spdlog::info("resolving dep={:?} path={:?}", name, d.path());
         d.path() = resolve_path(cache(), d.path());
+    } else if (!d.url().empty()) {
+        spdlog::info("resolving dep={:?} url={:?}", name, d.url());
+        d.path() = resolve_path(cache(), d.url());
     } else if (!d.git().empty()) {
         auto &tag = d.tag().empty() ? d.branch() : d.tag();
         spdlog::info("resolving dep={:?} git={:?} tag={:?}", name, d.git(), tag);
